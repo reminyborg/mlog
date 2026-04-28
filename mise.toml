@@ -1,0 +1,21 @@
+[tools]
+go = "1.25.0"
+
+[env]
+MLOG_FILE = "~/log/log.md"
+
+[tasks.build]
+run = "go build -o mlog ."
+description = "Build the mlog binary"
+
+[tasks.test]
+run = "go test ./..."
+description = "Run all tests"
+
+[tasks.run]
+run = "go run main.go"
+description = "Run mlog"
+
+[tasks.install]
+run = "go build -o ~/.local/bin/mlog ."
+description = "Build and install mlog to PATH"
