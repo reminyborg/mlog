@@ -13,8 +13,8 @@ import (
 
 	"github.com/alecthomas/kong"
 
-	mlog "mlog/internal/log"
-	"mlog/internal/tui"
+	mlog "github.com/reminyborg/mlog/internal/log"
+	"github.com/reminyborg/mlog/internal/tui"
 )
 
 type Context struct {
@@ -327,9 +327,16 @@ func (c *EditCmd) Run(ctx *Context) error {
 	return cmd.Run()
 }
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 var CLI struct {
-	Log  string `help:"Path to log.md" env:"MLOG_FILE" default:"~/log/log.md"`
-	JSON bool   `help:"Emit machine-readable JSON for read commands (list, search, today, show)"`
+	Log     string           `help:"Path to log.md" env:"MLOG_FILE" default:"~/log/log.md"`
+	JSON    bool             `help:"Emit machine-readable JSON for read commands (list, search, today, show)"`
+	Version kong.VersionFlag `help:"Show version and exit"`
 
 	List       ListCmd       `cmd:"" help:"List incomplete tasks"`
 	Create     CreateCmd     `cmd:"" help:"Create a new task"`
@@ -349,6 +356,7 @@ func main() {
 		kong.Name("mlog"),
 		kong.Description("Edit your mlog markdown task file from the terminal."),
 		kong.UsageOnError(),
+		kong.Vars{"version": fmt.Sprintf("mlog %s (commit %s, built %s)", version, commit, date)},
 	)
 	if strings.HasPrefix(CLI.Log, "~/") {
 		home, err := os.UserHomeDir()

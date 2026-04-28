@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	mlog "mlog/internal/log"
+	mlog "github.com/reminyborg/mlog/internal/log"
 )
 
 type promptKind int

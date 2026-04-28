@@ -6,7 +6,26 @@ The format is plain markdown: dated `# YYYY-MM-DD` sections, `## Todo` and `## B
 
 ## Install
 
+### Download a release
+
+Grab the binary for your platform from the [Releases page](https://github.com/reminyborg/mlog/releases) and put it on your `$PATH`. For example, on macOS/Linux:
+
+```sh
+# pick the right asset for your OS/arch
+curl -fsSL https://github.com/reminyborg/mlog/releases/latest/download/mlog_<version>_<os>_<arch>.tar.gz \
+  | tar -xz -C /tmp \
+  && install /tmp/mlog ~/.local/bin/mlog
+```
+
+### With `go install`
+
 Requires Go 1.25+.
+
+```sh
+go install github.com/reminyborg/mlog@latest
+```
+
+### Build from source
 
 ```sh
 go build -o ~/.local/bin/mlog .

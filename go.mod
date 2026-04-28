@@ -1,4 +1,4 @@
-module mlog
+module github.com/reminyborg/mlog
 
 go 1.25.0
 

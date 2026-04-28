@@ -9,7 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	mlog "mlog/internal/log"
+	mlog "github.com/reminyborg/mlog/internal/log"
 )
 
 func newTestModel(t *testing.T, content string) (model, *mlog.Store) {
