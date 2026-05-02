@@ -94,9 +94,7 @@ func (m model) updateNav(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "r":
-		if err := m.refresh(); err != nil {
-			m.errMsg = err.Error()
-		}
+		m.setErr(m.refresh())
 		return m, nil
 	case "up", "k":
 		if m.cursor > 0 {
@@ -111,51 +109,55 @@ func (m model) updateNav(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		m.cursor = len(m.tasks) - 1
 	case "enter", " ":
-		if len(m.tasks) == 0 {
-			return m, nil
-		}
-		task := m.tasks[m.cursor]
-		line, err := m.store.CompleteTask(task.Line)
-		if err != nil {
-			m.errMsg = err.Error()
-		} else {
-			m.status = "completed: " + line
-		}
-		if err := m.refresh(); err != nil {
-			m.errMsg = err.Error()
-		}
-		return m, nil
+		return m.actOnSelected("completed", func(t mlog.Task) (string, error) {
+			return m.store.CompleteTask(t.Line)
+		})
 	case "d":
-		if len(m.tasks) == 0 {
-			return m, nil
-		}
-		task := m.tasks[m.cursor]
-		line, err := m.store.DeleteByLine(task.LineIndex)
-		if err != nil {
-			m.errMsg = err.Error()
-		} else {
-			m.status = "deleted: " + line
-		}
-		if err := m.refresh(); err != nil {
-			m.errMsg = err.Error()
-		}
-		return m, nil
+		return m.actOnSelected("deleted", func(t mlog.Task) (string, error) {
+			return m.store.DeleteByLine(t.LineIndex)
+		})
 	case "n":
-		m.prompt = promptCreate
-		m.createToday = false
-		m.input.Reset()
-		m.input.Placeholder = "description (prefix with [proj] to tag a project)"
-		m.input.Focus()
-		return m, textinput.Blink
+		return m.beginCreatePrompt(false), textinput.Blink
 	case "N":
-		m.prompt = promptCreate
-		m.createToday = true
-		m.input.Reset()
-		m.input.Placeholder = "description for TODAY (prefix with [proj] to tag)"
-		m.input.Focus()
-		return m, textinput.Blink
+		return m.beginCreatePrompt(true), textinput.Blink
 	}
 	return m, nil
+}
+
+// actOnSelected runs `act` against the task under the cursor, reports the
+// outcome via status/errMsg, and refreshes the task list.
+func (m model) actOnSelected(verb string, act func(mlog.Task) (string, error)) (tea.Model, tea.Cmd) {
+	if len(m.tasks) == 0 {
+		return m, nil
+	}
+	line, err := act(m.tasks[m.cursor])
+	if err != nil {
+		m.errMsg = err.Error()
+	} else {
+		m.status = verb + ": " + line
+	}
+	m.setErr(m.refresh())
+	return m, nil
+}
+
+func (m model) beginCreatePrompt(today bool) model {
+	m.prompt = promptCreate
+	m.createToday = today
+	m.input.Reset()
+	if today {
+		m.input.Placeholder = "description for TODAY (prefix with [proj] to tag)"
+	} else {
+		m.input.Placeholder = "description (prefix with [proj] to tag a project)"
+	}
+	m.input.Focus()
+	return m
+}
+
+// setErr stores err in m.errMsg if non-nil; no-op otherwise.
+func (m *model) setErr(err error) {
+	if err != nil {
+		m.errMsg = err.Error()
+	}
 }
 
 func (m model) updatePrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -210,9 +212,7 @@ func (m model) submitPrompt() (tea.Model, tea.Cmd) {
 		}
 		m.prompt = promptNone
 		m.input.Blur()
-		if err := m.refresh(); err != nil {
-			m.errMsg = err.Error()
-		}
+		m.setErr(m.refresh())
 		return m, nil
 	}
 

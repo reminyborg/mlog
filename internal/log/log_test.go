@@ -283,6 +283,24 @@ func TestGetToday_NoEntryMessage(t *testing.T) {
 	}
 }
 
+func TestAppendToToday_NewHeaderGoesAfterLastDateHeader(t *testing.T) {
+	s := newTestStore(t, "## Todo\n\n- [ ] keep me\n\n## Backlog\n\n- old\n\n# 2026-04-15\n\n- [x] earlier\n")
+	s.setTodayKey("2026-05-01")
+	if err := s.AppendToToday("fresh"); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	headerIdx := strings.Index(full, "# 2026-05-01")
+	earlierIdx := strings.Index(full, "# 2026-04-15")
+	todoIdx := strings.Index(full, "## Todo")
+	if headerIdx == -1 || earlierIdx == -1 || todoIdx == -1 {
+		t.Fatalf("missing expected sections:\n%s", full)
+	}
+	if !(headerIdx > earlierIdx && headerIdx > todoIdx) {
+		t.Errorf("new date header should land after last date H1 (and after Todo/Backlog when those precede it):\n%s", full)
+	}
+}
+
 func TestAppendToToday_AppendsToExisting(t *testing.T) {
 	today := "2026-04-15"
 	s := newTestStore(t, "")
