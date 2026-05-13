@@ -13,8 +13,8 @@ run = "go test ./..."
 description = "Run all tests"
 
 [tasks.run]
-run = "go run main.go"
-description = "Run mlog"
+run = "go run . list"
+description = "Run mlog (lists incomplete tasks)"
 
 [tasks.install]
 run = "go build -o ~/.local/bin/mlog ."

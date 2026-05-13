@@ -26,10 +26,6 @@ func New(path string) *Store {
 // SetClock overrides the clock used to compute today's date. Intended for tests.
 func (s *Store) SetClock(now func() time.Time) { s.now = now }
 
-// SetNow is the package-level form of SetClock for callers that only have a *Store.
-// Kept as a thin shim because external test packages (e.g. internal/tui) use it.
-func SetNow(s *Store, now func() time.Time) { s.SetClock(now) }
-
 // TodayKey returns the YYYY-MM-DD key for today in the configured clock.
 func (s *Store) TodayKey() string { return s.now().Format("2006-01-02") }
 
@@ -101,7 +97,6 @@ var (
 	reCompletedBox = regexp.MustCompile(`^- \[[xX]\]`)
 	reAnyTaskBox   = regexp.MustCompile(`^- \[[ xX]\]`)
 	reTaskParts    = regexp.MustCompile(`^- \[[ xX]\] (?:\[([^\]]+)\])?\s*(.*)`)
-	reProjectTag   = regexp.MustCompile(`^- \[.\] \[([^\]]+)\]`)
 )
 
 // sectionName extracts "Todo" from "## Todo", "2026-04-15" from "# 2026-04-15", etc.
@@ -414,7 +409,7 @@ func (s *Store) completeAtLine(lines []string, idx int) (string, error) {
 }
 
 func projectOf(line string) string {
-	if m := reProjectTag.FindStringSubmatch(line); m != nil {
+	if m := reTaskParts.FindStringSubmatch(line); m != nil {
 		return m[1]
 	}
 	return ""

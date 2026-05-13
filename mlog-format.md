@@ -79,6 +79,31 @@ Long-term or deferred items. Items can be plain bullets or use the same checkbox
 - [project] Plain bullet (also allowed)
 ```
 
+## Interacting with the File
+
+### File Layout
+A mlog file has three regions, top to bottom:
+
+1. **Project references** — the `[name]: url` link definitions, declared once at the top.
+2. **Date entries** — `# YYYY-MM-DD` sections in chronological order, oldest first.
+3. **Global `## Todo` and `## Backlog`** — a single pair of sections at the very bottom of the file, holding work that isn't tied to a specific day. They are not per-date.
+
+### Adding a New Day
+Insert a new `# YYYY-MM-DD` header after the most recent date entry and before the global `## Todo` section. You're always appending to the end of the dated region — entries stay in chronological order and are never reordered.
+
+### Completing a Task
+A completed task is written `- [x]`. Two patterns are both valid:
+
+- **Move it under today's date** (recommended) — relocate the line to today's `# YYYY-MM-DD` section, creating that header if it doesn't exist yet. This keeps recently finished work visible next to the day it was done.
+- **Flip it in place** — change `- [ ]` to `- [x]` where it already sits. Simpler and closer to plain markdown, but the day it was finished isn't recorded.
+
+Reopening a task is the reverse — change `- [x]` back to `- [ ]`. There's no record of where a task originally came from, so a reopened task just stays where it was checked off rather than moving back.
+
+### Spacing
+- Leave a blank line before every heading (`#`, `##`, `###`).
+- Separate narrative paragraphs from task lists with a blank line.
+- Keep a blank line between date entries and between the major sections so things don't run together.
+
 ## Key Characteristics
 
 ### Personal and Technical Mix
@@ -103,6 +128,10 @@ The mlog combines:
 [myproject]: https://github.com/user/myproject
 [sideproject]: https://github.com/user/sideproject
 
+# 2024-08-12
+
+Quick start on the refactor, nothing finished yet.
+
 # 2024-08-15
 
 Romans 5-8 Challenges and trials creates endurance and character
@@ -124,6 +153,8 @@ I am very grateful for our health and the relationships we have.
 
 - [myproject] Research future improvements
 ```
+
+Note how the date entries run oldest-to-newest and the `## Todo`/`## Backlog` sections sit once at the bottom, after the last day.
 
 ## Philosophy
 

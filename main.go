@@ -14,7 +14,6 @@ import (
 	"github.com/alecthomas/kong"
 
 	mlog "github.com/reminyborg/mlog/internal/log"
-	"github.com/reminyborg/mlog/internal/tui"
 )
 
 type Context struct {
@@ -93,13 +92,7 @@ type CompleteCmd struct {
 }
 
 func (c *CompleteCmd) Run(ctx *Context) error {
-	return runTaskAction(taskAction{
-		verb:        "Completed",
-		line:        c.Line,
-		match:       c.Match,
-		byLine:      ctx.Store.CompleteTaskByLine,
-		bySubstring: ctx.Store.CompleteTask,
-	})
+	return runTaskAction("Completed", c.Line, c.Match, ctx.Store.CompleteTaskByLine, ctx.Store.CompleteTask)
 }
 
 type UncompleteCmd struct {
@@ -108,13 +101,7 @@ type UncompleteCmd struct {
 }
 
 func (c *UncompleteCmd) Run(ctx *Context) error {
-	return runTaskAction(taskAction{
-		verb:        "Uncompleted",
-		line:        c.Line,
-		match:       c.Match,
-		byLine:      ctx.Store.UncompleteByLine,
-		bySubstring: ctx.Store.Uncomplete,
-	})
+	return runTaskAction("Uncompleted", c.Line, c.Match, ctx.Store.UncompleteByLine, ctx.Store.Uncomplete)
 }
 
 type DeleteCmd struct {
@@ -123,37 +110,23 @@ type DeleteCmd struct {
 }
 
 func (c *DeleteCmd) Run(ctx *Context) error {
-	return runTaskAction(taskAction{
-		verb:        "Deleted",
-		line:        c.Line,
-		match:       c.Match,
-		byLine:      ctx.Store.DeleteByLine,
-		bySubstring: ctx.Store.Delete,
-	})
+	return runTaskAction("Deleted", c.Line, c.Match, ctx.Store.DeleteByLine, ctx.Store.Delete)
 }
 
-type taskAction struct {
-	verb        string
-	line        int
-	match       []string
-	byLine      func(int) (string, error)
-	bySubstring func(string) (string, error)
-}
-
-func runTaskAction(a taskAction) error {
-	if a.line >= 0 {
-		line, err := a.byLine(a.line)
+func runTaskAction(verb string, line int, match []string, byLine func(int) (string, error), bySubstring func(string) (string, error)) error {
+	if line >= 0 {
+		got, err := byLine(line)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("%s: %s\n", a.verb, line)
+		fmt.Printf("%s: %s\n", verb, got)
 		return nil
 	}
-	match := strings.Join(a.match, " ")
-	if match == "" {
+	text := strings.Join(match, " ")
+	if text == "" {
 		return fmt.Errorf("provide a match substring or --line N")
 	}
-	line, err := a.bySubstring(match)
+	got, err := bySubstring(text)
 	if err != nil {
 		var amb *mlog.AmbiguousMatchError
 		if errors.As(err, &amb) {
@@ -165,7 +138,7 @@ func runTaskAction(a taskAction) error {
 		}
 		return err
 	}
-	fmt.Printf("%s: %s\n", a.verb, line)
+	fmt.Printf("%s: %s\n", verb, got)
 	return nil
 }
 
@@ -207,15 +180,6 @@ func (c *NoteCmd) Run(ctx *Context) error {
 		return fmt.Errorf("note text is required (pass as args, '-' to read stdin, or pipe stdin)")
 	}
 	return ctx.Store.AppendToToday(text)
-}
-
-type TuiCmd struct{}
-
-func (c *TuiCmd) Run(ctx *Context) error {
-	if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
-		return (&ListCmd{}).Run(ctx)
-	}
-	return tui.Run(ctx.Store)
 }
 
 func isTerminal(f *os.File) bool {
@@ -338,7 +302,7 @@ var CLI struct {
 	JSON    bool             `help:"Emit machine-readable JSON for read commands (list, search, today, show)"`
 	Version kong.VersionFlag `help:"Show version and exit"`
 
-	List       ListCmd       `cmd:"" help:"List incomplete tasks"`
+	List       ListCmd       `cmd:"" help:"List incomplete tasks" default:"withargs"`
 	Create     CreateCmd     `cmd:"" help:"Create a new task"`
 	Complete   CompleteCmd   `cmd:"" help:"Complete a task by matching substring"`
 	Uncomplete UncompleteCmd `cmd:"" help:"Flip a completed task back to incomplete (in place)"`
@@ -348,7 +312,6 @@ var CLI struct {
 	Search     SearchCmd     `cmd:"" help:"Search the log for matching lines"`
 	Note       NoteCmd       `cmd:"" help:"Append a free-form note to today's entry"`
 	Edit       EditCmd       `cmd:"" help:"Open the log file in $EDITOR"`
-	Tui        TuiCmd        `cmd:"" help:"Launch interactive TUI" default:"withargs"`
 }
 
 func main() {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`mlog` is a Go CLI that edits a single personal markdown log file (an "mlog" — see `mlog-format.md` for the format spec). Default location is `~/log/log.md`, overridable with `--log` or `$MLOG_FILE`. The CLI exposes subcommands (`list`, `create`, `complete`, `uncomplete`, `delete`, `today`, `show`, `search`, `note`, `edit`, `tui`) and a Bubble Tea TUI (`tui` is the default subcommand when none is given).
+`mlog` is a Go CLI that edits a single personal markdown log file (an "mlog" — see `mlog-format.md` for the format spec). It's designed to be driven by LLM agents (e.g. Claude) more than by hand. Default location is `~/log/log.md`, overridable with `--log` or `$MLOG_FILE`. The CLI exposes subcommands (`list`, `create`, `complete`, `uncomplete`, `delete`, `today`, `show`, `search`, `note`, `edit`); `list` runs when no subcommand is given.
 
 ## Commands
 
@@ -12,18 +12,17 @@ Defined in `mise.toml`; run with `mise run <task>` or directly with `go`:
 
 - `mise run build` — `go build -o mlog .`
 - `mise run test` — `go test ./...`
-- `mise run run` — `go run main.go` (launches TUI by default)
+- `mise run run` — `go run . list`
 - `mise run install` — builds to `~/.local/bin/mlog`
 - Single test: `go test ./internal/log -run TestCompleteTask_MovesToTodayAndRemovesOriginal`
 
 ## Architecture
 
-Two packages under `internal/`:
+One package under `internal/`:
 
-- **`internal/log`** owns all state. `Store` holds the file path and an injectable `now func() time.Time` (tests pin a fixed date via `setTodayKey`). Every mutating method (`CreateTask`, `CompleteTask`, `Uncomplete`, `Delete`, `AppendToToday`) reads the whole file into `[]string`, splices, and writes atomically (temp file + `os.Rename` in the same dir). Parsing is regex-driven (`reH1`/`reH2`/`reH3`, `reIncomplete`, `reCompletedBox`, `reAnyTaskBox`, `reProjectTag`). Generic `splice` and `findIndex` helpers mimic JS semantics. `findTaskMatches(lines, matchText, box)` is the shared lookup used by `CompleteTask`/`Uncomplete`/`Delete` — pass the relevant box regex to scope the match.
-- **`internal/tui`** is a Bubble Tea model wrapping `*log.Store`. A task list view and a prompt state machine (`promptKind`) for the create flow. All persistence delegates back to the `Store` — no parsing logic lives in the TUI.
+- **`internal/log`** owns all state. `Store` holds the file path and an injectable `now func() time.Time` (tests pin a fixed date via `setTodayKey`). Every mutating method (`CreateTask`, `CompleteTask`, `Uncomplete`, `Delete`, `AppendToToday`) reads the whole file into `[]string`, splices, and writes atomically (temp file + `os.Rename` in the same dir). Parsing is regex-driven (`reHeading`/`reH1`/`reH2`/`reH3`, `reOpenBox`, `reCompletedBox`, `reAnyTaskBox`, `reTaskParts`). The generic `splice` helper plus `findHeader`/`nextHeading` do the line-slicing. `findTaskMatches(lines, matchText, box)` is the shared lookup used by `CompleteTask`/`Uncomplete`/`Delete` — pass the relevant box regex to scope the match.
 
-`main.go` wires Kong CLI → `Context{Store}` → subcommand `Run`.
+`main.go` wires Kong CLI → `Context{Store}` → subcommand `Run`. The only third-party dependency is `kong`.
 
 ## Non-obvious invariants
 
@@ -46,4 +45,4 @@ When invoking `mlog` non-interactively, prefer these forms:
 - **Reads:** pass `--json` to `list`, `search`, `today`, `show`. The output is stable JSON with `lineIndex`, `section`, and (where applicable) `project`/`description` fields. Without `--json` the output is human-formatted with section headers and is harder to parse reliably.
 - **Completing / uncompleting / deleting tasks:** all three share the same disambiguation. If a substring matches more than one task, the command exits non-zero and prints candidates as `--line N` hints on stderr. Use `mlog list --json` (or `mlog search --json` to find completed tasks) to look up the `lineIndex` and re-run with `--line N` for an unambiguous mutation. The line index becomes stale after any mutation, so re-list before re-running. `delete` matches both open and completed task lines; `uncomplete` only matches `- [x]` lines.
 - **Multi-line notes / bracketed content:** pass `-` as the arg, or omit args entirely when stdin is piped. Examples: `printf 'line1\nline2\n' | mlog note -` and `echo '[proj] new task' | mlog create -p proj -`.
-- **Bare `mlog` with no TTY** falls through to `list` instead of opening the Bubble Tea TUI, so it's safe to call from scripts.
+- **Bare `mlog`** runs `list`, so it's safe to call from scripts.
