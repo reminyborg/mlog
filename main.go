@@ -95,6 +95,15 @@ func (c *CompleteCmd) Run(ctx *Context) error {
 	return runTaskAction("Completed", c.Line, c.Match, ctx.Store.CompleteTaskByLine, ctx.Store.CompleteTask)
 }
 
+type ScheduleCmd struct {
+	Line  int      `help:"Move the task at exact lineIndex (from 'list --json')." default:"-1"`
+	Match []string `arg:"" help:"Substring matching the task to move to today" optional:""`
+}
+
+func (c *ScheduleCmd) Run(ctx *Context) error {
+	return runTaskAction("Scheduled", c.Line, c.Match, ctx.Store.ScheduleTaskByLine, ctx.Store.ScheduleTask)
+}
+
 type UncompleteCmd struct {
 	Line  int      `help:"Uncomplete the task at exact lineIndex (from 'search --json')." default:"-1"`
 	Match []string `arg:"" help:"Substring matching the completed task" optional:""`
@@ -305,6 +314,7 @@ var CLI struct {
 	List       ListCmd       `cmd:"" help:"List incomplete tasks" default:"withargs"`
 	Create     CreateCmd     `cmd:"" help:"Create a new task"`
 	Complete   CompleteCmd   `cmd:"" help:"Complete a task by matching substring"`
+	Schedule   ScheduleCmd   `cmd:"" help:"Move an incomplete task to today's entry"`
 	Uncomplete UncompleteCmd `cmd:"" help:"Flip a completed task back to incomplete (in place)"`
 	Delete     DeleteCmd     `cmd:"" help:"Delete a task line (open or completed)"`
 	Today      TodayCmd      `cmd:"" help:"Print today's entry"`

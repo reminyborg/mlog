@@ -440,6 +440,39 @@ func collapseDoubleBlank(lines []string, idx int) []string {
 	return lines
 }
 
+// ---- Schedule -------------------------------------------------------------
+
+// ScheduleTask moves a unique incomplete task to today's entry (keeping it open).
+func (s *Store) ScheduleTask(matchText string) (string, error) {
+	return s.mutateByMatch(matchText, "incomplete", reOpenBox, (*Store).scheduleAtLine)
+}
+
+func (s *Store) ScheduleTaskByLine(lineIndex int) (string, error) {
+	return s.mutateByLine(lineIndex, "an incomplete task", reOpenBox, (*Store).scheduleAtLine)
+}
+
+func (s *Store) scheduleAtLine(lines []string, idx int) (string, error) {
+	task := strings.TrimSpace(lines[idx])
+
+	lines = splice(lines, idx, 1)
+	lines = collapseDoubleBlank(lines, idx)
+
+	var headerIdx int
+	lines, headerIdx = s.ensureTodayHeader(lines)
+	endIdx := nextHeading(lines, headerIdx, reHeading.MatchString)
+
+	insertIdx := lastProjectLineIn(lines, headerIdx, endIdx, projectOf(task))
+	if insertIdx == -1 {
+		insertIdx = endIdx
+	}
+
+	lines = insertLineWithSpacing(lines, insertIdx, task)
+	if err := s.write(lines); err != nil {
+		return "", err
+	}
+	return task, nil
+}
+
 // ---- Uncomplete ------------------------------------------------------------
 
 // Uncomplete flips a unique completed task (`- [x]`) back to `- [ ]` in place.
