@@ -283,6 +283,60 @@ func (c *ShowCmd) Run(ctx *Context) error {
 	return nil
 }
 
+type SyncCmd struct {
+	PullOnly bool `help:"Only pull, do not commit or push" short:"p"`
+	PushOnly bool `help:"Only commit and push, do not pull" short:"P"`
+	Message  string `help:"Override the commit message" short:"m"`
+}
+
+func (c *SyncCmd) Run(ctx *Context) error {
+	dir := filepath.Dir(ctx.Store.Path)
+	file := filepath.Base(ctx.Store.Path)
+
+	if !c.PushOnly {
+		if out, err := gitCmd(dir, "pull", "--rebase", "--autostash"); err != nil {
+			return fmt.Errorf("git pull failed: %w\n%s", err, out)
+		} else if out != "" {
+			fmt.Print(out)
+		}
+	}
+
+	if !c.PullOnly {
+		if out, err := gitCmd(dir, "add", file); err != nil {
+			return fmt.Errorf("git add failed: %w\n%s", err, out)
+		}
+		// Only commit if there is something staged.
+		_, err := gitCmd(dir, "diff", "--cached", "--quiet")
+		if err != nil {
+			// exit 1 means staged changes exist.
+			msg := c.Message
+			if msg == "" {
+				msg = "mlog: sync " + time.Now().Format("2006-01-02")
+			}
+			if out, err := gitCmd(dir, "commit", "-m", msg); err != nil {
+				return fmt.Errorf("git commit failed: %w\n%s", err, out)
+			} else if out != "" {
+				fmt.Print(out)
+			}
+			if out, err := gitCmd(dir, "push"); err != nil {
+				return fmt.Errorf("git push failed: %w\n%s", err, out)
+			} else if out != "" {
+				fmt.Print(out)
+			}
+		} else {
+			fmt.Println("nothing to commit")
+		}
+	}
+	return nil
+}
+
+func gitCmd(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	return strings.TrimRight(string(out), "\n"), err
+}
+
 type EditCmd struct{}
 
 func (c *EditCmd) Run(ctx *Context) error {
@@ -321,6 +375,7 @@ var CLI struct {
 	Show       ShowCmd       `cmd:"" help:"Print a specific date's entry"`
 	Search     SearchCmd     `cmd:"" help:"Search the log for matching lines"`
 	Note       NoteCmd       `cmd:"" help:"Append a free-form note to today's entry"`
+	Sync       SyncCmd       `cmd:"" help:"Pull, commit, and push the log file via git"`
 	Edit       EditCmd       `cmd:"" help:"Open the log file in $EDITOR"`
 }
 
