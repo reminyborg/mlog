@@ -37,6 +37,20 @@ Or with [mise](https://mise.jdx.dev/):
 mise run install
 ```
 
+### Install the agent skill
+
+The repo ships a `SKILL.md` describing the CLI to coding agents. It's embedded in the binary so you can install it without a separate download:
+
+```sh
+mlog skill install                  # write SKILL.md into every detected agent skill dir
+mlog skill install --target claude  # only the named agent
+mlog skill install --dir <path>     # write SKILL.md straight into an arbitrary directory
+mlog skill install --dry-run        # print what would be written, change nothing
+mlog skill print                    # dump SKILL.md to stdout (pipe wherever)
+```
+
+Auto-detection currently knows about Claude Code (`~/.claude/skills/mlog/SKILL.md`). For any other agent, use `mlog skill print > <path>` or `mlog skill install --dir <path>`.
+
 ## Usage
 
 By default `mlog` reads and writes `~/log/log.md`. Override with `--log <path>` or `MLOG_FILE`.
@@ -59,6 +73,7 @@ Running `mlog` with no arguments runs `list`. It's safe to call from scripts.
 | `note <text>` | Append a free-form note to today's entry. |
 | `sync [-p] [-P] [-m msg]` | Pull, commit, and push the log file via git. |
 | `edit` | Open the log file in `$VISUAL` / `$EDITOR`. |
+| `skill install` / `skill print` | Install the embedded `SKILL.md` into agent skill dirs, or print it to stdout. |
 
 `complete`, `schedule`, `uncomplete`, and `delete` exit non-zero with `--line N` hints when a substring matches more than one task. Pass `-` (or pipe stdin) to `create` and `note` for multi-line input.
 
