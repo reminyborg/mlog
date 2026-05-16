@@ -1,10 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to LLM agents working with code in this repository.
 
 ## What this is
 
-`mlog` is a Go CLI that edits a single personal markdown log file (an "mlog" — see `mlog-format.md` for the format spec). It's designed to be driven by LLM agents (e.g. Claude) more than by hand. Default location is `~/log/log.md`, overridable with `--log` or `$MLOG_FILE`. The CLI exposes subcommands (`list`, `create`, `complete`, `uncomplete`, `delete`, `today`, `show`, `search`, `note`, `edit`); `list` runs when no subcommand is given.
+`mlog` is a Go CLI that edits a single personal markdown log file (an "mlog" — see `mlog-format.md` for the format spec). It's designed to be driven by LLM agents more than by hand. Default location is `~/log/log.md`, overridable with `--log` or `$MLOG_FILE`. The CLI exposes subcommands (`list`, `create`, `complete`, `uncomplete`, `delete`, `today`, `show`, `search`, `note`, `edit`); `list` runs when no subcommand is given.
 
 ## Commands
 
@@ -38,7 +38,7 @@ One package under `internal/`:
 
 `mlog-format.md` is the source of truth for the markdown conventions the parser expects (H1 dates, `## Todo`, `## Backlog`, `- [ ] [project] description`). When changing parser regexes or insertion rules, cross-check against that document.
 
-## Using the CLI from Claude
+## Using the CLI from an agent
 
 When invoking `mlog` non-interactively, prefer these forms:
 
