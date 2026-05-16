@@ -2,7 +2,40 @@
 
 A small CLI for editing a single personal markdown log file — an *mlog* — that mixes daily task tracking with free-form notes.
 
-The format is plain markdown: dated `# YYYY-MM-DD` sections, `## Todo` and `## Backlog` lists, and `- [ ] [project] description` task lines. See [`mlog-format.md`](mlog-format.md) for the full spec.
+The format is plain markdown: dated `# YYYY-MM-DD` sections, `## Todo` and `## Backlog` lists, and `- [ ] [project] description` task lines.
+
+## The mlog format
+
+An *mlog* is a single file that mixes daily entries, task tracking, and free-form notes:
+
+```markdown
+[myproject]: https://github.com/user/myproject
+
+# 2025-05-15
+
+Shipped the auth refactor. Surprisingly smooth.
+
+- [x] [myproject] Refactor authentication
+- [ ] [myproject] Write migration guide
+
+## Todo
+
+- [ ] [myproject] Add rate limiting
+- [ ] [myproject] Update docs
+
+## Backlog
+
+- [myproject] Explore edge caching
+```
+
+Key conventions:
+
+- **Project references** (`[name]: url`) declared once at the top.
+- **`# YYYY-MM-DD` sections** in chronological order — oldest first, newest just above `## Todo`.
+- **`## Todo` / `## Backlog`** sit once at the very bottom, for work not tied to a specific day.
+- **Tasks** use `- [ ]` / `- [x]`; completing one moves the line under today's date entry.
+
+See [`mlog-format.md`](mlog-format.md) for the full specification, spacing rules, and philosophy.
 
 ## Install
 
