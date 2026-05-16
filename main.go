@@ -31,12 +31,17 @@ func emitJSON(v any) error {
 	return enc.Encode(v)
 }
 
-type ListCmd struct{}
+type ListCmd struct {
+	Project string `help:"Filter by project tag" short:"p"`
+}
 
 func (c *ListCmd) Run(ctx *Context) error {
 	tasks, err := ctx.Store.ListIncomplete()
 	if err != nil {
 		return err
+	}
+	if c.Project != "" {
+		tasks = filterByProject(tasks, c.Project)
 	}
 	if ctx.JSON {
 		if tasks == nil {
@@ -45,7 +50,11 @@ func (c *ListCmd) Run(ctx *Context) error {
 		return emitJSON(tasks)
 	}
 	if len(tasks) == 0 {
-		fmt.Println("No incomplete tasks.")
+		if c.Project != "" {
+			fmt.Printf("No incomplete tasks for project [%s].\n", c.Project)
+		} else {
+			fmt.Println("No incomplete tasks.")
+		}
 		return nil
 	}
 	currentSection := ""
@@ -60,6 +69,16 @@ func (c *ListCmd) Run(ctx *Context) error {
 		fmt.Printf("  %2d. %s\n", i+1, t.Line)
 	}
 	return nil
+}
+
+func filterByProject(tasks []mlog.Task, project string) []mlog.Task {
+	var out []mlog.Task
+	for _, t := range tasks {
+		if strings.EqualFold(t.Project, project) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 type CreateCmd struct {
@@ -228,17 +247,34 @@ func readStdin() (string, error) {
 }
 
 type SearchCmd struct {
-	Query []string `arg:"" help:"Search query (case-insensitive substring)"`
+	Query   []string `arg:"" help:"Search query (case-insensitive substring)" optional:""`
+	Project string   `help:"Restrict results to a project tag" short:"p"`
 }
 
 func (c *SearchCmd) Run(ctx *Context) error {
 	query := strings.Join(c.Query, " ")
-	if query == "" {
-		return fmt.Errorf("query is required")
+	if query == "" && c.Project == "" {
+		return fmt.Errorf("provide a query and/or --project")
 	}
-	results, err := ctx.Store.Search(query)
+	// When filtering by project with no query, search for the project tag itself.
+	effectiveQuery := query
+	if effectiveQuery == "" {
+		effectiveQuery = "[" + c.Project + "]"
+	}
+	results, err := ctx.Store.Search(effectiveQuery)
 	if err != nil {
 		return err
+	}
+	if c.Project != "" && query != "" {
+		// Further narrow: only lines that contain the project tag.
+		tag := strings.ToLower("[" + c.Project + "]")
+		var filtered []mlog.SearchResult
+		for _, r := range results {
+			if strings.Contains(strings.ToLower(r.Line), tag) {
+				filtered = append(filtered, r)
+			}
+		}
+		results = filtered
 	}
 	if ctx.JSON {
 		if results == nil {
@@ -457,6 +493,92 @@ func (c *SkillPrintCmd) Run(ctx *Context) error {
 	return err
 }
 
+// ---- Project subcommands --------------------------------------------------
+
+type ProjectCmd struct {
+	List   ProjectListCmd   `cmd:"" help:"List all project definitions"`
+	Add    ProjectAddCmd    `cmd:"" help:"Add a new project definition"`
+	Delete ProjectDeleteCmd `cmd:"" help:"Remove a project definition"`
+	Edit   ProjectEditCmd   `cmd:"" help:"Rename a project or change its URL"`
+}
+
+type ProjectListCmd struct{}
+
+func (c *ProjectListCmd) Run(ctx *Context) error {
+	projects, err := ctx.Store.ListProjects()
+	if err != nil {
+		return err
+	}
+	if ctx.JSON {
+		if projects == nil {
+			projects = []mlog.Project{}
+		}
+		return emitJSON(projects)
+	}
+	if len(projects) == 0 {
+		fmt.Println("No projects defined.")
+		return nil
+	}
+	for _, p := range projects {
+		if p.URL != "" {
+			fmt.Printf("  %-24s %s\n", p.Name, p.URL)
+		} else {
+			fmt.Printf("  %s\n", p.Name)
+		}
+	}
+	return nil
+}
+
+type ProjectAddCmd struct {
+	Name string `arg:"" help:"Project name"`
+	URL  string `arg:"" help:"Project URL or description" optional:""`
+}
+
+func (c *ProjectAddCmd) Run(ctx *Context) error {
+	if err := ctx.Store.AddProject(c.Name, c.URL); err != nil {
+		return err
+	}
+	if c.URL != "" {
+		fmt.Printf("Added: [%s]: %s\n", c.Name, c.URL)
+	} else {
+		fmt.Printf("Added: [%s]\n", c.Name)
+	}
+	return nil
+}
+
+type ProjectDeleteCmd struct {
+	Name string `arg:"" help:"Project name"`
+}
+
+func (c *ProjectDeleteCmd) Run(ctx *Context) error {
+	if err := ctx.Store.DeleteProject(c.Name); err != nil {
+		return err
+	}
+	fmt.Printf("Deleted: [%s]\n", c.Name)
+	return nil
+}
+
+type ProjectEditCmd struct {
+	Name   string `arg:"" help:"Current project name"`
+	Rename string `help:"New project name" short:"r"`
+	URL    string `help:"New URL or description" short:"u"`
+}
+
+func (c *ProjectEditCmd) Run(ctx *Context) error {
+	if c.Rename == "" && c.URL == "" {
+		return fmt.Errorf("provide --rename <new-name> and/or --url <new-url>")
+	}
+	if err := ctx.Store.EditProject(c.Name, c.Rename, c.URL); err != nil {
+		return err
+	}
+	newName := c.Rename
+	if newName == "" {
+		newName = c.Name
+	}
+	fmt.Printf("Updated: [%s]\n", newName)
+	return nil
+}
+
 type EditCmd struct{}
 
 func (c *EditCmd) Run(ctx *Context) error {
@@ -497,6 +619,7 @@ var CLI struct {
 	Note       NoteCmd       `cmd:"" help:"Append a free-form note to today's entry"`
 	Sync       SyncCmd       `cmd:"" help:"Pull, commit, and push the log file via git"`
 	Edit       EditCmd       `cmd:"" help:"Open the log file in $EDITOR"`
+	Project    ProjectCmd    `cmd:"" help:"Manage project definitions (list, add, delete, edit)"`
 	Skill      SkillCmd      `cmd:"" help:"Manage the mlog agent skill (install or print SKILL.md)"`
 }
 

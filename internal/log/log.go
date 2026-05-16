@@ -97,6 +97,7 @@ var (
 	reCompletedBox = regexp.MustCompile(`^- \[[xX]\]`)
 	reAnyTaskBox   = regexp.MustCompile(`^- \[[ xX]\]`)
 	reTaskParts    = regexp.MustCompile(`^- \[[ xX]\] (?:\[([^\]]+)\])?\s*(.*)`)
+	reProjectRef   = regexp.MustCompile(`^\[([^\]]+)\]:\s*(.*?)\s*$`)
 )
 
 // sectionName extracts "Todo" from "## Todo", "2026-04-15" from "# 2026-04-15", etc.
@@ -512,6 +513,148 @@ func (s *Store) deleteAtLine(lines []string, idx int) (string, error) {
 		return "", err
 	}
 	return deleted, nil
+}
+
+// ---- Projects -------------------------------------------------------------
+
+// Project represents a project reference link definition at the top of the file.
+type Project struct {
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	LineIndex int    `json:"lineIndex"`
+}
+
+// findProjectLine returns the line index of the [name]: ... reference, or -1.
+func findProjectLine(lines []string, name string) int {
+	for i, line := range lines {
+		if m := reProjectRef.FindStringSubmatch(line); m != nil {
+			if m[1] == name {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// projectRefBlockEnd returns the index just after the last project-reference
+// line at the top of the file (skipping blank lines between refs). If there
+// are no refs yet, it returns 0.
+func projectRefBlockEnd(lines []string) int {
+	last := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if reProjectRef.MatchString(line) {
+			last = i
+		} else {
+			break
+		}
+	}
+	if last == -1 {
+		return 0
+	}
+	return last + 1
+}
+
+func (s *Store) ListProjects() ([]Project, error) {
+	lines, err := s.read()
+	if err != nil {
+		return nil, err
+	}
+	var projects []Project
+	for i, line := range lines {
+		if m := reProjectRef.FindStringSubmatch(line); m != nil {
+			projects = append(projects, Project{Name: m[1], URL: m[2], LineIndex: i})
+		}
+	}
+	return projects, nil
+}
+
+func (s *Store) AddProject(name, url string) error {
+	lines, err := s.read()
+	if err != nil {
+		return err
+	}
+	if findProjectLine(lines, name) != -1 {
+		return fmt.Errorf("project %q already exists", name)
+	}
+	newLine := "[" + name + "]: " + url
+	if url == "" {
+		newLine = "[" + name + "]:"
+	}
+	insertAt := projectRefBlockEnd(lines)
+	lines = splice(lines, insertAt, 0, newLine)
+	// Ensure a blank line separates the refs block from the rest of the file.
+	afterInsert := insertAt + 1
+	if afterInsert < len(lines) && strings.TrimSpace(lines[afterInsert]) != "" && !reProjectRef.MatchString(lines[afterInsert]) {
+		lines = splice(lines, afterInsert, 0, "")
+	}
+	return s.write(lines)
+}
+
+func (s *Store) DeleteProject(name string) error {
+	lines, err := s.read()
+	if err != nil {
+		return err
+	}
+	idx := findProjectLine(lines, name)
+	if idx == -1 {
+		return fmt.Errorf("project %q not found", name)
+	}
+	lines = splice(lines, idx, 1)
+	lines = collapseDoubleBlank(lines, idx)
+	return s.write(lines)
+}
+
+// EditProject updates a project's name and/or URL. If newName is non-empty and
+// differs from name, all task references ([name]) and ### name H3 headings are
+// also rewritten. Pass empty string to leave name or URL unchanged.
+func (s *Store) EditProject(name, newName, newURL string) error {
+	lines, err := s.read()
+	if err != nil {
+		return err
+	}
+	idx := findProjectLine(lines, name)
+	if idx == -1 {
+		return fmt.Errorf("project %q not found", name)
+	}
+	m := reProjectRef.FindStringSubmatch(lines[idx])
+	if m == nil {
+		return fmt.Errorf("unexpected: line %d is not a project ref", idx)
+	}
+	if newName == "" {
+		newName = m[1]
+	}
+	if newURL == "" {
+		newURL = m[2]
+	}
+	if newName != name {
+		if findProjectLine(lines, newName) != -1 {
+			return fmt.Errorf("project %q already exists", newName)
+		}
+		// Rewrite all task references and H3 headings.
+		oldTag := "[" + name + "]"
+		newTag := "[" + newName + "]"
+		for i, line := range lines {
+			if i == idx {
+				continue
+			}
+			if strings.Contains(line, oldTag) {
+				lines[i] = strings.ReplaceAll(line, oldTag, newTag)
+			}
+			if reH3.MatchString(line) && strings.TrimSpace(line) == "### "+name {
+				lines[i] = "### " + newName
+			}
+		}
+	}
+	if newURL != "" {
+		lines[idx] = "[" + newName + "]: " + newURL
+	} else {
+		lines[idx] = "[" + newName + "]:"
+	}
+	return s.write(lines)
 }
 
 // ---- Notes / entries -------------------------------------------------------

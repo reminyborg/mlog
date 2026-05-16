@@ -575,3 +575,153 @@ func TestSearch_NoMatchesReturnsEmpty(t *testing.T) {
 		t.Errorf("want empty, got %+v", results)
 	}
 }
+
+// ---- Project tests ---------------------------------------------------------
+
+func TestListProjects_ReturnsDefined(t *testing.T) {
+	s := newTestStore(t, "[myproject]: https://github.com/user/myproject\n[sideproject]: https://github.com/user/sideproject\n\n# 2026-04-15\n\n- [ ] [myproject] some task\n")
+	projects, err := s.ListProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projects) != 2 {
+		t.Fatalf("want 2 projects, got %d: %+v", len(projects), projects)
+	}
+	if projects[0].Name != "myproject" || projects[0].URL != "https://github.com/user/myproject" {
+		t.Errorf("unexpected project[0]: %+v", projects[0])
+	}
+	if projects[1].Name != "sideproject" {
+		t.Errorf("unexpected project[1]: %+v", projects[1])
+	}
+}
+
+func TestListProjects_EmptyWhenNone(t *testing.T) {
+	s := newTestStore(t, "# 2026-04-15\n\n- [ ] plain task\n")
+	projects, err := s.ListProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projects) != 0 {
+		t.Errorf("want 0 projects, got %d", len(projects))
+	}
+}
+
+func TestAddProject_AppendsToRefBlock(t *testing.T) {
+	s := newTestStore(t, "[alpha]: https://alpha.example\n\n# 2026-04-15\n\n- [ ] task\n")
+	if err := s.AddProject("beta", "https://beta.example"); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	if !strings.Contains(full, "[beta]: https://beta.example") {
+		t.Errorf("new project ref not found:\n%s", full)
+	}
+	// Beta should come after alpha.
+	alphaPos := strings.Index(full, "[alpha]:")
+	betaPos := strings.Index(full, "[beta]:")
+	if betaPos < alphaPos {
+		t.Errorf("beta appears before alpha:\n%s", full)
+	}
+}
+
+func TestAddProject_NoExistingRefs(t *testing.T) {
+	s := newTestStore(t, "# 2026-04-15\n\n- [ ] task\n")
+	if err := s.AddProject("newproj", "https://new.example"); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	if !strings.Contains(full, "[newproj]: https://new.example") {
+		t.Errorf("project ref not found:\n%s", full)
+	}
+	// Ref block should be separated from the date heading by a blank line.
+	if strings.Contains(full, "[newproj]: https://new.example\n# ") {
+		t.Errorf("missing blank line between ref and heading:\n%s", full)
+	}
+}
+
+func TestAddProject_ErrorsOnDuplicate(t *testing.T) {
+	s := newTestStore(t, "[alpha]: https://alpha.example\n\n# 2026-04-15\n")
+	if err := s.AddProject("alpha", "https://other.example"); err == nil {
+		t.Error("expected error for duplicate project, got nil")
+	}
+}
+
+func TestAddProject_NoURL(t *testing.T) {
+	s := newTestStore(t, "# 2026-04-15\n")
+	if err := s.AddProject("bare", ""); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	if !strings.Contains(full, "[bare]:") {
+		t.Errorf("bare project ref not found:\n%s", full)
+	}
+}
+
+func TestDeleteProject_RemovesRef(t *testing.T) {
+	s := newTestStore(t, "[alpha]: https://alpha.example\n[beta]: https://beta.example\n\n# 2026-04-15\n")
+	if err := s.DeleteProject("alpha"); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	if strings.Contains(full, "[alpha]:") {
+		t.Errorf("alpha still present:\n%s", full)
+	}
+	if !strings.Contains(full, "[beta]:") {
+		t.Errorf("beta missing after deleting alpha:\n%s", full)
+	}
+}
+
+func TestDeleteProject_ErrorsWhenNotFound(t *testing.T) {
+	s := newTestStore(t, "[alpha]: https://alpha.example\n\n# 2026-04-15\n")
+	if err := s.DeleteProject("ghost"); err == nil {
+		t.Error("expected error for missing project, got nil")
+	}
+}
+
+func TestEditProject_RenameUpdatesRefAndTasks(t *testing.T) {
+	content := "[oldname]: https://example.com\n\n## Todo\n\n- [ ] [oldname] do something\n\n### oldname\n\n- [ ] [oldname] subtask\n"
+	s := newTestStore(t, content)
+	if err := s.EditProject("oldname", "newname", ""); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	if strings.Contains(full, "[oldname]") {
+		t.Errorf("old name still present:\n%s", full)
+	}
+	if !strings.Contains(full, "[newname]: https://example.com") {
+		t.Errorf("renamed ref not found:\n%s", full)
+	}
+	if !strings.Contains(full, "[newname] do something") {
+		t.Errorf("task ref not updated:\n%s", full)
+	}
+	if !strings.Contains(full, "### newname") {
+		t.Errorf("H3 heading not updated:\n%s", full)
+	}
+}
+
+func TestEditProject_ChangeURL(t *testing.T) {
+	s := newTestStore(t, "[proj]: https://old.example\n\n# 2026-04-15\n")
+	if err := s.EditProject("proj", "", "https://new.example"); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	if !strings.Contains(full, "[proj]: https://new.example") {
+		t.Errorf("URL not updated:\n%s", full)
+	}
+	if strings.Contains(full, "old.example") {
+		t.Errorf("old URL still present:\n%s", full)
+	}
+}
+
+func TestEditProject_ErrorsWhenNotFound(t *testing.T) {
+	s := newTestStore(t, "[alpha]: https://alpha.example\n\n# 2026-04-15\n")
+	if err := s.EditProject("ghost", "ghost2", ""); err == nil {
+		t.Error("expected error for missing project, got nil")
+	}
+}
+
+func TestEditProject_ErrorsOnNameCollision(t *testing.T) {
+	s := newTestStore(t, "[alpha]: https://a.example\n[beta]: https://b.example\n\n# 2026-04-15\n")
+	if err := s.EditProject("alpha", "beta", ""); err == nil {
+		t.Error("expected error when renaming to existing name, got nil")
+	}
+}
