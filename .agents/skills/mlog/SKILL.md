@@ -1,12 +1,12 @@
 ---
 name: mlog
-description: Read and mutate the personal markdown log file (~/log/log.md). Use when the user asks to log tasks, check today's tasks, complete/schedule/delete/search tasks, add notes, manage projects, or sync the log with git.
+description: Mutate the mlog file. Use for creating, completing, scheduling, deleting tasks, adding notes, managing projects, or syncing with git. Do NOT load for simple reads — use `mlog list --json`, `mlog list -p <project> --json`, or `mlog today --json` directly instead.
 compatibility: Requires the mlog binary on $PATH. Install from https://github.com/reminyborg/mlog/releases or via go install github.com/reminyborg/mlog@latest
 ---
 
 # mlog
 
-Personal markdown log CLI. File lives at `~/log/log.md` (override with `$MLOG_FILE` or `--log <path>`).
+Personal markdown log CLI. File path is configured via `$MLOG_FILE` or `--log <path>` (default: `~/log/log.md`).
 
 ## Reading
 
