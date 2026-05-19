@@ -30,13 +30,13 @@ One package under `internal/`:
 - **`CompleteTask` moves the line** to today's H1 section, creating the header if it doesn't exist, then deletes the original line. The line ends up in exactly one place.
 - **`Uncomplete` does NOT move the line** — it flips `- [x]` back to `- [ ]` in place, leaving it under whatever section it was completed under. This is asymmetric with `CompleteTask` because we don't track where the task came from.
 - **`Delete` collapses one pair of adjacent blanks** after removal, mirroring `completeAtLine`'s cleanup so file spacing doesn't degrade.
-- **Project-aware insertion in `## Todo`**: `CreateTask` looks for an `### <project>` H3 inside `## Todo` and appends there; otherwise inserts above the first H3 in the section (so freshly-tagged tasks don't land mid-subsection).
+- **Project-aware insertion in `# Todo`**: `CreateTask` looks for an `### <project>` H3 inside `# Todo` and appends there; otherwise inserts above the first H3 in the section (so freshly-tagged tasks don't land mid-subsection).
 - **Insertion adjacent to a heading adds a trailing blank** (`needsTrailing` checks in `CreateTask`/`CompleteTask`/`AppendToToday`) to preserve the file's blank-line-before-heading convention. `AppendToToday` also adds a leading blank when the previous line is non-blank, so notes aren't glued to the prior task. When editing these functions, preserve that pattern or the file's spacing will degrade over edits.
 - **Tests inject `now`** — when adding tests that depend on today's date, use `newTestStore` then `s.setTodayKey("YYYY-MM-DD")`.
 
 ## Format reference
 
-`mlog-format.md` is the source of truth for the markdown conventions the parser expects (H1 dates, `## Todo`, `## Backlog`, `- [ ] [project] description`). When changing parser regexes or insertion rules, cross-check against that document.
+`mlog-format.md` is the source of truth for the markdown conventions the parser expects (H1 dates, `# Todo`, `# Backlog`, `- [ ] [project] description`). When changing parser regexes or insertion rules, cross-check against that document.
 
 ## Using the CLI from an agent
 

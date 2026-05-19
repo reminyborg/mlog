@@ -58,21 +58,21 @@ Concrete items completed or planned for a specific day:
 - [ ] [project] Need to refactor Z
 ```
 
-### Todo Sections
+## Todo Sections
 Organized lists of upcoming work:
 
 ```markdown
-## Todo
+# Todo
 
 - [ ] [project] Feature to implement
 - [ ] [project] Bug to fix
 ```
 
-### Backlog Sections
+## Backlog Sections
 Long-term or deferred items. Items can be plain bullets or use the same checkbox form as Todo:
 
 ```markdown
-## Backlog
+# Backlog
 
 - [ ] [project] Research topic X
 - [ ] [project] Investigate technology Y
@@ -86,10 +86,10 @@ A mlog file has three regions, top to bottom:
 
 1. **Project references** — the `[name]: url` link definitions, declared once at the top.
 2. **Date entries** — `# YYYY-MM-DD` sections in chronological order, oldest first.
-3. **Global `## Todo` and `## Backlog`** — a single pair of sections at the very bottom of the file, holding work that isn't tied to a specific day. They are not per-date.
+3. **Global `# Todo` and `# Backlog`** — a single pair of sections at the very bottom of the file, holding work that isn't tied to a specific day. They are not per-date.
 
 ### Adding a New Day
-Insert a new `# YYYY-MM-DD` header after the most recent date entry and before the global `## Todo` section. You're always appending to the end of the dated region — entries stay in chronological order and are never reordered.
+Insert a new `# YYYY-MM-DD` header after the most recent date entry and before the global `# Todo` section. You're always appending to the end of the dated region — entries stay in chronological order and are never reordered.
 
 ### Completing a Task
 A completed task is written `- [x]`. Two patterns are both valid:
@@ -144,17 +144,17 @@ I am very grateful for our health and the relationships we have.
 - [x] [myproject] Implemented new feature
 - [x] [sideproject] Fixed critical bug
 
-## Todo
+# Todo
 
 - [ ] [myproject] Refactor authentication
 - [ ] [sideproject] Add tests for API endpoints
 
-## Backlog
+# Backlog
 
 - [myproject] Research future improvements
 ```
 
-Note how the date entries run oldest-to-newest and the `## Todo`/`## Backlog` sections sit once at the bottom, after the last day.
+Note how the date entries run oldest-to-newest and the `# Todo`/`# Backlog` sections sit once at the bottom, after the last day.
 
 ## Philosophy
 

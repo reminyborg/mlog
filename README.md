@@ -2,7 +2,7 @@
 
 A small CLI for editing a single personal markdown log file — an *mlog* — that mixes daily task tracking with free-form notes.
 
-The format is plain markdown: dated `# YYYY-MM-DD` sections, `## Todo` and `## Backlog` lists, and `- [ ] [project] description` task lines.
+The format is plain markdown: dated `# YYYY-MM-DD` sections, `# Todo` and `# Backlog` lists, and `- [ ] [project] description` task lines.
 
 ## The mlog format
 
@@ -18,12 +18,12 @@ Shipped the auth refactor. Surprisingly smooth.
 - [x] [myproject] Refactor authentication
 - [ ] [myproject] Write migration guide
 
-## Todo
+# Todo
 
 - [ ] [myproject] Add rate limiting
 - [ ] [myproject] Update docs
 
-## Backlog
+# Backlog
 
 - [myproject] Explore edge caching
 ```
@@ -31,8 +31,8 @@ Shipped the auth refactor. Surprisingly smooth.
 Key conventions:
 
 - **Project references** (`[name]: url`) declared once at the top.
-- **`# YYYY-MM-DD` sections** in chronological order — oldest first, newest just above `## Todo`.
-- **`## Todo` / `## Backlog`** sit once at the very bottom, for work not tied to a specific day.
+- **`# YYYY-MM-DD` sections** in chronological order — oldest first, newest just above `# Todo`.
+- **`# Todo` / `# Backlog`** sit once at the very bottom, for work not tied to a specific day.
 - **Tasks** use `- [ ]` / `- [x]`; completing one moves the line under today's date entry.
 
 See [`mlog-format.md`](mlog-format.md) for the full specification, spacing rules, and philosophy.
@@ -86,7 +86,7 @@ Auto-detection currently knows about Claude Code (`~/.claude/skills/mlog/SKILL.m
 
 ## Usage
 
-By default `mlog` reads and writes `~/log/log.md`. Override with `--log <path>` or `MLOG_FILE`.
+By default `mlog` reads and writes `~/log/log.md`. Override the path with the `--log <path>` flag or the `MLOG_FILE` environment variable — both accept `~/`-prefixed paths. Run `mlog path` to print the resolved path that is currently in use.
 
 Running `mlog` with no arguments runs `list`. It's safe to call from scripts.
 
@@ -95,7 +95,7 @@ Running `mlog` with no arguments runs `list`. It's safe to call from scripts.
 | Command | Purpose |
 | --- | --- |
 | `list` | List incomplete tasks, grouped by section. |
-| `create [-p project] [-t] <description>` | Create a task in `## Todo` (or today's entry with `-t`). |
+| `create [-p project] [-t] <description>` | Create a task in `# Todo` (or today's entry with `-t`). |
 | `complete <substring>` | Mark a task done and move it under today's date. |
 | `schedule <substring>` | Move an incomplete task to today's entry. |
 | `uncomplete <substring>` | Flip a `- [x]` back to `- [ ]` in place. |
@@ -105,6 +105,7 @@ Running `mlog` with no arguments runs `list`. It's safe to call from scripts.
 | `search <query>` | Case-insensitive substring search across the log. |
 | `note <text>` | Append a free-form note to today's entry. |
 | `sync [-p] [-P] [-m msg]` | Pull, commit, and push the log file via git. |
+| `path` | Print the resolved path to the log file (respects `MLOG_FILE` and `--log`). |
 | `edit` | Open the log file in `$VISUAL` / `$EDITOR`. |
 | `skill install` / `skill print` | Install the embedded `SKILL.md` into agent skill dirs, or print it to stdout. |
 

@@ -55,6 +55,26 @@ func (e *AmbiguousMatchError) Error() string {
 	return fmt.Sprintf("%d tasks match %q", len(e.Candidates), e.Match)
 }
 
+// ValidationIssue describes a single structural problem found in the log file.
+type ValidationIssue struct {
+	Line    int // 1-based line number
+	Message string
+}
+
+// ValidationError is returned by Validate when one or more issues are detected.
+type ValidationError struct {
+	Issues []ValidationIssue
+}
+
+func (e *ValidationError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d issue(s) in log file:", len(e.Issues))
+	for _, iss := range e.Issues {
+		fmt.Fprintf(&b, "\n  line %d: %s", iss.Line, iss.Message)
+	}
+	return b.String()
+}
+
 // ---- File I/O --------------------------------------------------------------
 
 func (s *Store) read() ([]string, error) {
@@ -92,7 +112,7 @@ var (
 	reH2           = regexp.MustCompile(`^## `)
 	reH3           = regexp.MustCompile(`^### `)
 	reDateH1       = regexp.MustCompile(`^# \d{4}-\d{2}-\d{2}\s*$`)
-	reTodoBacklog  = regexp.MustCompile(`^## (Todo|Backlog)`)
+	reTodoBacklog  = regexp.MustCompile(`^# (Todo|Backlog)\s*$`)
 	reOpenBox      = regexp.MustCompile(`^- \[ \]`)
 	reCompletedBox = regexp.MustCompile(`^- \[[xX]\]`)
 	reAnyTaskBox   = regexp.MustCompile(`^- \[[ xX]\]`)
@@ -100,7 +120,7 @@ var (
 	reProjectRef   = regexp.MustCompile(`^\[([^\]]+)\]:\s*(.*?)\s*$`)
 )
 
-// sectionName extracts "Todo" from "## Todo", "2026-04-15" from "# 2026-04-15", etc.
+// sectionName extracts "Todo" from "# Todo", "2026-04-15" from "# 2026-04-15", etc.
 func sectionName(line string) string {
 	return strings.TrimSpace(reHeading.ReplaceAllString(line, ""))
 }
@@ -146,8 +166,8 @@ func insertLineWithSpacing(lines []string, idx int, item string) []string {
 // newDateHeaderInsertPos returns the line index where a brand-new date H1
 // should be inserted. Anchors to the section after the last date-based H1
 // so the new entry lands chronologically with its siblings, regardless of
-// where ## Todo / ## Backlog live in the file. Falls back to the first
-// ## Todo / ## Backlog (then end-of-file) when no date H1 exists yet.
+// where # Todo / # Backlog live in the file. Falls back to the first
+// # Todo / # Backlog (then end-of-file) when no date H1 exists yet.
 func newDateHeaderInsertPos(lines []string) int {
 	last := -1
 	for i, l := range lines {
@@ -175,6 +195,73 @@ func (s *Store) ensureTodayHeader(lines []string) ([]string, int) {
 	}
 	at := newDateHeaderInsertPos(lines)
 	return splice(lines, at, 0, "", header, ""), at + 1
+}
+
+// ---- Validation ------------------------------------------------------------
+
+// Validate reads the log file and checks structural invariants:
+//   - at most one # Todo header
+//   - at most one # Backlog header
+//   - no duplicate # YYYY-MM-DD headers
+//   - every heading has a blank line before it (except the very first line)
+//
+// Returns *ValidationError listing all problems, or nil when the file is valid.
+func (s *Store) Validate() error {
+	lines, err := s.read()
+	if err != nil {
+		return err
+	}
+	return validateLines(lines)
+}
+
+func validateLines(lines []string) error {
+	var issues []ValidationIssue
+	todoCount := 0
+	backlogCount := 0
+	datesSeen := map[string]int{} // date → 1-based line number of first occurrence
+
+	for i, line := range lines {
+		lineNum := i + 1
+
+		switch {
+		case reTodoBacklog.MatchString(line):
+			switch sectionName(line) {
+			case "Todo":
+				todoCount++
+				if todoCount > 1 {
+					issues = append(issues, ValidationIssue{Line: lineNum, Message: "duplicate # Todo header"})
+				}
+			case "Backlog":
+				backlogCount++
+				if backlogCount > 1 {
+					issues = append(issues, ValidationIssue{Line: lineNum, Message: "duplicate # Backlog header"})
+				}
+			}
+		case reDateH1.MatchString(line):
+			date := sectionName(line)
+			if prev, ok := datesSeen[date]; ok {
+				issues = append(issues, ValidationIssue{
+					Line:    lineNum,
+					Message: fmt.Sprintf("duplicate date header %q (first seen at line %d)", date, prev),
+				})
+			} else {
+				datesSeen[date] = lineNum
+			}
+		}
+
+		// Every heading must have a blank line before it, except the very first line.
+		if i > 0 && reHeading.MatchString(line) && strings.TrimSpace(lines[i-1]) != "" {
+			issues = append(issues, ValidationIssue{
+				Line:    lineNum,
+				Message: fmt.Sprintf("heading %q has no blank line before it", strings.TrimSpace(line)),
+			})
+		}
+	}
+
+	if len(issues) == 0 {
+		return nil
+	}
+	return &ValidationError{Issues: issues}
 }
 
 // ---- Listing / search ------------------------------------------------------
@@ -321,9 +408,11 @@ func (s *Store) CreateTask(project, description string, forToday bool) error {
 		return s.write(lines)
 	}
 
-	todoIdx := slices.IndexFunc(lines, func(l string) bool { return reH2.MatchString(l) && strings.HasPrefix(l, "## Todo") })
+	todoIdx := slices.IndexFunc(lines, func(l string) bool {
+		return reTodoBacklog.MatchString(l) && sectionName(l) == "Todo"
+	})
 	if todoIdx == -1 {
-		lines = append(lines, "", "## Todo", "", taskLine, "")
+		lines = append(lines, "", "# Todo", "", taskLine, "")
 		return s.write(lines)
 	}
 
@@ -339,12 +428,12 @@ func formatTask(project, description string) string {
 	return "- [ ] [" + project + "] " + description
 }
 
-// insertPosInTodo finds where to put a new task inside the ## Todo section.
+// insertPosInTodo finds where to put a new task inside the # Todo section.
 // If `project` matches an `### <project>` H3 within Todo, append to that H3;
 // otherwise, append above the first H3 (or at section end if there are none),
 // trimming trailing blank lines so the new task sits flush.
 func insertPosInTodo(lines []string, todoIdx int, project string) int {
-	todoEnd := nextHeading(lines, todoIdx, reH2.MatchString)
+	todoEnd := nextHeading(lines, todoIdx, reH1.MatchString)
 
 	if project != "" {
 		needle := strings.ToLower(project)

@@ -26,8 +26,8 @@ mlog show 2026-05-14 --json   # specific date entry: {date, found, content}
 ## Mutating
 
 ```sh
-mlog create -p myproject "description"   # add to ## Todo under [myproject]
-mlog create -t "description"             # add to today's entry instead of ## Todo
+mlog create -p myproject "description"   # add to # Todo under [myproject]
+mlog create -t "description"             # add to today's entry instead of # Todo
 mlog complete "substring"                # mark done, moves line to today's entry
 mlog schedule "substring"                # move incomplete task to today's entry
 mlog uncomplete "substring"              # flip - [x] back to - [ ] in place
@@ -44,8 +44,8 @@ more than one task. Stderr prints `--line N` hints for each candidate:
 ```sh
 mlog complete "refactor"
 # error: 3 tasks match "refactor". Re-run with --line N:
-#   --line 12  - [ ] [mlog] refactor parser  (## Todo)
-#   --line 34  - [ ] [api] refactor auth  (## Todo)
+#   --line 12  - [ ] [mlog] refactor parser  (# Todo)
+#   --line 34  - [ ] [api] refactor auth  (# Todo)
 
 mlog complete --line 12    # unambiguous
 ```
@@ -56,7 +56,7 @@ Line indexes go stale after any mutation — always re-list before re-running.
 
 Projects are `[name]: url` reference-link definitions at the top of the file.
 They appear as `[name]` tags on task lines and optionally as `### name` H3
-headings inside `## Todo`.
+headings inside `# Todo`.
 
 ```sh
 mlog project list --json             # [{name, url, lineIndex}]

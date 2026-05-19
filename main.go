@@ -83,7 +83,7 @@ func filterByProject(tasks []mlog.Task, project string) []mlog.Task {
 
 type CreateCmd struct {
 	Project     string   `help:"Project tag" short:"p"`
-	Today       bool     `help:"Add to today's entry instead of ## Todo" short:"t"`
+	Today       bool     `help:"Add to today's entry instead of # Todo" short:"t"`
 	Description []string `arg:"" help:"Task description" optional:""`
 }
 
@@ -342,6 +342,10 @@ func (c *SyncCmd) Run(ctx *Context) error {
 	}
 
 	if !c.PullOnly {
+		if err := ctx.Store.Validate(); err != nil {
+			return fmt.Errorf("refusing to sync: %w", err)
+		}
+
 		if out, err := gitCmd(dir, "add", file); err != nil {
 			return fmt.Errorf("git add failed: %w\n%s", err, out)
 		}
@@ -398,6 +402,11 @@ func knownAgents() []agentTarget {
 			Name:     "claude",
 			Marker:   filepath.Join(home, ".claude"),
 			SkillDir: filepath.Join(home, ".claude", "skills", "mlog"),
+		},
+		{
+			Name:     "agents",
+			Marker:   home,
+			SkillDir: filepath.Join(home, ".agents", "skills", "mlog"),
 		},
 	}
 }
@@ -579,6 +588,26 @@ func (c *ProjectEditCmd) Run(ctx *Context) error {
 	return nil
 }
 
+type PathCmd struct{}
+
+func (c *PathCmd) Run(ctx *Context) error {
+	if ctx.JSON {
+		return emitJSON(map[string]string{"path": ctx.Store.Path})
+	}
+	fmt.Println(ctx.Store.Path)
+	return nil
+}
+
+type ValidateCmd struct{}
+
+func (c *ValidateCmd) Run(ctx *Context) error {
+	if err := ctx.Store.Validate(); err != nil {
+		return err
+	}
+	fmt.Println("ok")
+	return nil
+}
+
 type EditCmd struct{}
 
 func (c *EditCmd) Run(ctx *Context) error {
@@ -618,6 +647,8 @@ var CLI struct {
 	Search     SearchCmd     `cmd:"" help:"Search the log for matching lines"`
 	Note       NoteCmd       `cmd:"" help:"Append a free-form note to today's entry"`
 	Sync       SyncCmd       `cmd:"" help:"Pull, commit, and push the log file via git"`
+	Path       PathCmd       `cmd:"" help:"Print the resolved path to the log file"`
+	Validate   ValidateCmd   `cmd:"" help:"Check the log file for structural issues"`
 	Edit       EditCmd       `cmd:"" help:"Open the log file in $EDITOR"`
 	Project    ProjectCmd    `cmd:"" help:"Manage project definitions (list, add, delete, edit)"`
 	Skill      SkillCmd      `cmd:"" help:"Manage the mlog agent skill (install or print SKILL.md)"`

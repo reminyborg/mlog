@@ -43,7 +43,7 @@ func TestListIncomplete_ReturnsOnlyIncomplete(t *testing.T) {
 - [x] [pedal] Done task
 - [ ] Plain task
 
-## Backlog
+# Backlog
 
 - [ ] [intwine] Backlog item
 `)
@@ -67,7 +67,7 @@ func TestListIncomplete_ExtractsProjectAndDescription(t *testing.T) {
 - [ ] [pedal] Fix the bug
 - [ ] Plain task
 
-## Backlog
+# Backlog
 
 - [ ] [intwine] Backlog item
 `)
@@ -91,7 +91,7 @@ func TestListIncomplete_TracksSection(t *testing.T) {
 
 - [ ] [pedal] Fix the bug
 
-## Backlog
+# Backlog
 
 - [ ] [intwine] Backlog item
 `)
@@ -113,7 +113,7 @@ func TestListIncomplete_EmptyWhenAllComplete(t *testing.T) {
 }
 
 func TestCreateTask_WithoutForToday_AddsToTodoWithProject(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] existing\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] existing\n")
 	if err := s.CreateTask("myproject", "New task", false); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestCreateTask_WithoutForToday_AddsToTodoWithProject(t *testing.T) {
 }
 
 func TestCreateTask_WithoutProject(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] existing\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] existing\n")
 	if err := s.CreateTask("", "No project task", false); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestCreateTask_WithoutProject(t *testing.T) {
 func TestCreateTask_ForToday_AppendsToExisting(t *testing.T) {
 	s := newTestStore(t, "")
 	s.setTodayKey("2026-04-15")
-	if err := os.WriteFile(s.Path, []byte("# 2026-04-15\n\n- [ ] existing task\n\n## Backlog\n"), 0o644); err != nil {
+	if err := os.WriteFile(s.Path, []byte("# 2026-04-15\n\n- [ ] existing task\n\n# Backlog\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.CreateTask("", "Another task", true); err != nil {
@@ -197,7 +197,7 @@ func TestCompleteTask_ErrorsWhenNoMatch(t *testing.T) {
 }
 
 func TestCompleteTask_AmbiguousMatchReturnsCandidates(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] alpha one\n- [ ] alpha two\n- [ ] beta\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] alpha one\n- [ ] alpha two\n- [ ] beta\n")
 	_, err := s.CompleteTask("alpha")
 	var amb *AmbiguousMatchError
 	if err == nil {
@@ -215,7 +215,7 @@ func TestCompleteTask_AmbiguousMatchReturnsCandidates(t *testing.T) {
 }
 
 func TestCompleteTaskByLine_CompletesExactLine(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] alpha one\n- [ ] alpha two\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] alpha one\n- [ ] alpha two\n")
 	s.setTodayKey("2026-04-15")
 	tasks, _ := s.ListIncomplete()
 	var target Task
@@ -238,14 +238,14 @@ func TestCompleteTaskByLine_CompletesExactLine(t *testing.T) {
 }
 
 func TestCompleteTaskByLine_RejectsNonTaskLine(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] real task\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] real task\n")
 	if _, err := s.CompleteTaskByLine(0); err == nil {
 		t.Error("expected error for non-task line, got nil")
 	}
 }
 
 func TestCompleteTaskByLine_RejectsCompletedLine(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [x] already done\n")
+	s := newTestStore(t, "# Todo\n\n- [x] already done\n")
 	if _, err := s.CompleteTaskByLine(2); err == nil {
 		t.Error("expected error for completed line, got nil")
 	}
@@ -284,7 +284,7 @@ func TestGetToday_NoEntryMessage(t *testing.T) {
 }
 
 func TestAppendToToday_NewHeaderGoesAfterLastDateHeader(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] keep me\n\n## Backlog\n\n- old\n\n# 2026-04-15\n\n- [x] earlier\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] keep me\n\n# Backlog\n\n- old\n\n# 2026-04-15\n\n- [x] earlier\n")
 	s.setTodayKey("2026-05-01")
 	if err := s.AppendToToday("fresh"); err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ func TestAppendToToday_NewHeaderGoesAfterLastDateHeader(t *testing.T) {
 	full := s.readAll(t)
 	headerIdx := strings.Index(full, "# 2026-05-01")
 	earlierIdx := strings.Index(full, "# 2026-04-15")
-	todoIdx := strings.Index(full, "## Todo")
+	todoIdx := strings.Index(full, "# Todo")
 	if headerIdx == -1 || earlierIdx == -1 || todoIdx == -1 {
 		t.Fatalf("missing expected sections:\n%s", full)
 	}
@@ -305,7 +305,7 @@ func TestAppendToToday_AppendsToExisting(t *testing.T) {
 	today := "2026-04-15"
 	s := newTestStore(t, "")
 	s.setTodayKey(today)
-	os.WriteFile(s.Path, []byte("# "+today+"\n\n- [ ] task\n\n## Backlog\n"), 0o644)
+	os.WriteFile(s.Path, []byte("# "+today+"\n\n- [ ] task\n\n# Backlog\n"), 0o644)
 	if err := s.AppendToToday("A note here"); err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +316,7 @@ func TestAppendToToday_AppendsToExisting(t *testing.T) {
 }
 
 func TestAppendToToday_CreatesSectionIfMissing(t *testing.T) {
-	s := newTestStore(t, "## Backlog\n\n- [ ] something\n")
+	s := newTestStore(t, "# Backlog\n\n- [ ] something\n")
 	s.setTodayKey("2026-04-15")
 	if err := s.AppendToToday("Fresh note"); err != nil {
 		t.Fatal(err)
@@ -355,7 +355,7 @@ func TestSearch_FindsMatchingLines(t *testing.T) {
 - [ ] [pedal] Fix the bug
 - [x] [pedal] Write the docs
 
-## Backlog
+# Backlog
 
 - [ ] [intwine] migrate database
 `)
@@ -390,7 +390,7 @@ func TestSearch_TracksSection(t *testing.T) {
 
 - [ ] foo
 
-## Backlog
+# Backlog
 
 - [ ] foo bar
 `)
@@ -476,14 +476,14 @@ func TestUncompleteByLine_FlipsExactLine(t *testing.T) {
 }
 
 func TestUncompleteByLine_RejectsIncompleteLine(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] open\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] open\n")
 	if _, err := s.UncompleteByLine(2); err == nil {
 		t.Error("expected error uncompleting an open task, got nil")
 	}
 }
 
 func TestDelete_RemovesIncompleteTask(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] keep me\n- [ ] kill me\n- [ ] also keep\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] keep me\n- [ ] kill me\n- [ ] also keep\n")
 	line, err := s.Delete("kill me")
 	if err != nil {
 		t.Fatal(err)
@@ -515,7 +515,7 @@ func TestDelete_RemovesCompletedTask(t *testing.T) {
 }
 
 func TestDelete_CollapsesAdjacentBlankLines(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] only one\n\n## Backlog\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] only one\n\n# Backlog\n")
 	if _, err := s.Delete("only one"); err != nil {
 		t.Fatal(err)
 	}
@@ -526,7 +526,7 @@ func TestDelete_CollapsesAdjacentBlankLines(t *testing.T) {
 }
 
 func TestDelete_AmbiguousReturnsCandidates(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] alpha one\n- [x] alpha two\n- [ ] beta\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] alpha one\n- [x] alpha two\n- [ ] beta\n")
 	_, err := s.Delete("alpha")
 	var amb *AmbiguousMatchError
 	if !errors.As(err, &amb) {
@@ -538,14 +538,14 @@ func TestDelete_AmbiguousReturnsCandidates(t *testing.T) {
 }
 
 func TestDelete_ErrorsWhenNoMatch(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] real task\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] real task\n")
 	if _, err := s.Delete("nonexistent"); err == nil {
 		t.Error("expected error, got nil")
 	}
 }
 
 func TestDeleteByLine_RemovesExactLine(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] keep\n- [ ] zap\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] keep\n- [ ] zap\n")
 	if _, err := s.DeleteByLine(3); err != nil {
 		t.Fatal(err)
 	}
@@ -559,7 +559,7 @@ func TestDeleteByLine_RemovesExactLine(t *testing.T) {
 }
 
 func TestDeleteByLine_RejectsNonTaskLine(t *testing.T) {
-	s := newTestStore(t, "## Todo\n\n- [ ] real task\n")
+	s := newTestStore(t, "# Todo\n\n- [ ] real task\n")
 	if _, err := s.DeleteByLine(0); err == nil {
 		t.Error("expected error for non-task line, got nil")
 	}
@@ -678,7 +678,7 @@ func TestDeleteProject_ErrorsWhenNotFound(t *testing.T) {
 }
 
 func TestEditProject_RenameUpdatesRefAndTasks(t *testing.T) {
-	content := "[oldname]: https://example.com\n\n## Todo\n\n- [ ] [oldname] do something\n\n### oldname\n\n- [ ] [oldname] subtask\n"
+	content := "[oldname]: https://example.com\n\n# Todo\n\n- [ ] [oldname] do something\n\n### oldname\n\n- [ ] [oldname] subtask\n"
 	s := newTestStore(t, content)
 	if err := s.EditProject("oldname", "newname", ""); err != nil {
 		t.Fatal(err)
@@ -723,5 +723,129 @@ func TestEditProject_ErrorsOnNameCollision(t *testing.T) {
 	s := newTestStore(t, "[alpha]: https://a.example\n[beta]: https://b.example\n\n# 2026-04-15\n")
 	if err := s.EditProject("alpha", "beta", ""); err == nil {
 		t.Error("expected error when renaming to existing name, got nil")
+	}
+}
+
+// ---- Validate tests ---------------------------------------------------------
+
+func TestValidate_ValidFile(t *testing.T) {
+	s := newTestStore(t, "# 2026-01-01\n\n- [ ] task\n\n# Todo\n\n- [ ] todo\n\n# Backlog\n\n- item\n")
+	if err := s.Validate(); err != nil {
+		t.Errorf("expected valid file, got: %v", err)
+	}
+}
+
+func TestValidate_EmptyFile(t *testing.T) {
+	s := newTestStore(t, "")
+	if err := s.Validate(); err != nil {
+		t.Errorf("expected empty file to be valid, got: %v", err)
+	}
+}
+
+func TestValidate_DuplicateTodo(t *testing.T) {
+	s := newTestStore(t, "# Todo\n\n- [ ] a\n\n# Todo\n\n- [ ] b\n")
+	err := s.Validate()
+	if err == nil {
+		t.Fatal("expected error for duplicate # Todo")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T: %v", err, err)
+	}
+	found := false
+	for _, iss := range ve.Issues {
+		if strings.Contains(iss.Message, "duplicate # Todo") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected duplicate # Todo issue, got: %v", ve.Issues)
+	}
+}
+
+func TestValidate_DuplicateBacklog(t *testing.T) {
+	s := newTestStore(t, "# Backlog\n\n- a\n\n# Backlog\n\n- b\n")
+	err := s.Validate()
+	if err == nil {
+		t.Fatal("expected error for duplicate # Backlog")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T", err)
+	}
+	found := false
+	for _, iss := range ve.Issues {
+		if strings.Contains(iss.Message, "duplicate # Backlog") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected duplicate # Backlog issue, got: %v", ve.Issues)
+	}
+}
+
+func TestValidate_DuplicateDateHeader(t *testing.T) {
+	s := newTestStore(t, "# 2026-01-01\n\n- [ ] first\n\n# 2026-01-01\n\n- [ ] second\n")
+	err := s.Validate()
+	if err == nil {
+		t.Fatal("expected error for duplicate date header")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T", err)
+	}
+	found := false
+	for _, iss := range ve.Issues {
+		if strings.Contains(iss.Message, "duplicate date header") && strings.Contains(iss.Message, "2026-01-01") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected duplicate date header issue, got: %v", ve.Issues)
+	}
+}
+
+func TestValidate_MissingBlankLineBeforeHeading(t *testing.T) {
+	s := newTestStore(t, "# 2026-01-01\n- [ ] task\n# Todo\n")
+	err := s.Validate()
+	if err == nil {
+		t.Fatal("expected error for missing blank line before heading")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T", err)
+	}
+	found := false
+	for _, iss := range ve.Issues {
+		if strings.Contains(iss.Message, "no blank line before it") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected blank-line issue, got: %v", ve.Issues)
+	}
+}
+
+func TestValidate_FirstLineHeadingIsOK(t *testing.T) {
+	// Heading on the very first line requires no blank line before it.
+	s := newTestStore(t, "# 2026-01-01\n\n- [ ] task\n")
+	if err := s.Validate(); err != nil {
+		t.Errorf("expected valid file (first-line heading), got: %v", err)
+	}
+}
+
+func TestValidate_MultipleIssuesAllReported(t *testing.T) {
+	// Duplicate # Todo AND missing blank before second one.
+	s := newTestStore(t, "# Todo\n\n- [ ] a\n# Todo\n\n- [ ] b\n")
+	err := s.Validate()
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T", err)
+	}
+	if len(ve.Issues) < 2 {
+		t.Errorf("expected at least 2 issues (duplicate + missing blank), got %d: %v", len(ve.Issues), ve.Issues)
 	}
 }
