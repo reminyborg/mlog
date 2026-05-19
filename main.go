@@ -395,19 +395,24 @@ func (c *SkillInstallCmd) Run(ctx *Context) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(home, ".agents", "skills", "mlog")
-	path := filepath.Join(dir, "SKILL.md")
-	if c.DryRun {
-		fmt.Printf("would write %s (%d bytes)\n", path, len(skillMarkdown))
-		return nil
+	dirs := []string{
+		filepath.Join(home, ".agents", "skills", "mlog"),
+		filepath.Join(home, ".claude", "skills", "mlog"),
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+	for _, dir := range dirs {
+		path := filepath.Join(dir, "SKILL.md")
+		if c.DryRun {
+			fmt.Printf("would write %s (%d bytes)\n", path, len(skillMarkdown))
+			continue
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, []byte(skillMarkdown), 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("wrote %s\n", path)
 	}
-	if err := os.WriteFile(path, []byte(skillMarkdown), 0o644); err != nil {
-		return err
-	}
-	fmt.Printf("wrote %s\n", path)
 	return nil
 }
 
