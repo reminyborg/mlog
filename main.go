@@ -386,83 +386,18 @@ type SkillCmd struct {
 	Print   SkillPrintCmd   `cmd:"" help:"Print the embedded SKILL.md to stdout"`
 }
 
-type agentTarget struct {
-	Name     string // identifier used with --target
-	Marker   string // parent dir whose existence signals the agent is installed
-	SkillDir string // dir to write SKILL.md into
-}
-
-func knownAgents() []agentTarget {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
-	return []agentTarget{
-		{
-			Name:     "claude",
-			Marker:   filepath.Join(home, ".claude"),
-			SkillDir: filepath.Join(home, ".claude", "skills", "mlog"),
-		},
-		{
-			Name:     "agents",
-			Marker:   home,
-			SkillDir: filepath.Join(home, ".agents", "skills", "mlog"),
-		},
-	}
-}
-
 type SkillInstallCmd struct {
-	Target []string `help:"Only install for these agents (default: all detected). Repeat to pass multiple."`
-	Dir    string   `help:"Install SKILL.md directly into this directory instead of any known agent location"`
-	DryRun bool     `help:"Print what would be written without touching the filesystem"`
+	DryRun bool `help:"Print what would be written without touching the filesystem"`
 }
 
 func (c *SkillInstallCmd) Run(ctx *Context) error {
-	if c.Dir != "" {
-		if len(c.Target) > 0 {
-			return fmt.Errorf("--dir and --target are mutually exclusive")
-		}
-		return writeSkill(expandHome(c.Dir), c.DryRun)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
 	}
-
-	all := knownAgents()
-	var targets []agentTarget
-	if len(c.Target) > 0 {
-		byName := map[string]agentTarget{}
-		for _, a := range all {
-			byName[a.Name] = a
-		}
-		for _, name := range c.Target {
-			a, ok := byName[name]
-			if !ok {
-				return fmt.Errorf("unknown target %q (known: %s)", name, agentNames(all))
-			}
-			targets = append(targets, a)
-		}
-	} else {
-		for _, a := range all {
-			if _, err := os.Stat(a.Marker); err == nil {
-				targets = append(targets, a)
-			} else {
-				fmt.Fprintf(os.Stderr, "skipped %s (no %s)\n", a.Name, a.Marker)
-			}
-		}
-		if len(targets) == 0 {
-			return fmt.Errorf("no known agents detected; pass --dir <path> to install to a custom location")
-		}
-	}
-
-	for _, a := range targets {
-		if err := writeSkill(a.SkillDir, c.DryRun); err != nil {
-			return fmt.Errorf("install %s: %w", a.Name, err)
-		}
-	}
-	return nil
-}
-
-func writeSkill(dir string, dryRun bool) error {
+	dir := filepath.Join(home, ".agents", "skills", "mlog")
 	path := filepath.Join(dir, "SKILL.md")
-	if dryRun {
+	if c.DryRun {
 		fmt.Printf("would write %s (%d bytes)\n", path, len(skillMarkdown))
 		return nil
 	}
@@ -476,24 +411,6 @@ func writeSkill(dir string, dryRun bool) error {
 	return nil
 }
 
-func agentNames(targets []agentTarget) string {
-	names := make([]string, len(targets))
-	for i, a := range targets {
-		names[i] = a.Name
-	}
-	return strings.Join(names, ", ")
-}
-
-func expandHome(path string) string {
-	if !strings.HasPrefix(path, "~/") {
-		return path
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return path
-	}
-	return filepath.Join(home, path[2:])
-}
 
 type SkillPrintCmd struct{}
 
