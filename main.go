@@ -84,6 +84,7 @@ func filterByProject(tasks []mlog.Task, project string) []mlog.Task {
 type CreateCmd struct {
 	Project     string   `help:"Project tag" short:"p"`
 	Today       bool     `help:"Add to today's entry instead of # Todo" short:"t"`
+	Date        string   `help:"Add to a specific date's entry (today, tomorrow, yesterday, YYYY-MM-DD)" short:"d"`
 	Description []string `arg:"" help:"Task description" optional:""`
 }
 
@@ -98,7 +99,16 @@ func (c *CreateCmd) Run(ctx *Context) error {
 	if strings.Contains(desc, "\n") {
 		return fmt.Errorf("task description cannot contain newlines; use 'note' for multi-line entries")
 	}
-	if err := ctx.Store.CreateTask(c.Project, desc, c.Today); err != nil {
+	date := ""
+	if c.Date != "" {
+		date, err = ctx.Store.ParseDate(c.Date)
+		if err != nil {
+			return err
+		}
+	} else if c.Today {
+		date = ctx.Store.TodayKey()
+	}
+	if err := ctx.Store.CreateTask(c.Project, desc, date); err != nil {
 		return err
 	}
 	prefix := ""

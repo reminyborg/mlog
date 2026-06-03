@@ -189,7 +189,13 @@ func newDateHeaderInsertPos(lines []string) int {
 // ensureTodayHeader returns lines (possibly with today's H1 inserted) and
 // the index of the today header.
 func (s *Store) ensureTodayHeader(lines []string) ([]string, int) {
-	header := "# " + s.TodayKey()
+	return s.ensureDateHeader(lines, s.TodayKey())
+}
+
+// ensureDateHeader returns lines (possibly with the given date's H1 inserted)
+// and the index of the date header. date must be in YYYY-MM-DD format.
+func (s *Store) ensureDateHeader(lines []string, date string) ([]string, int) {
+	header := "# " + date
 	if idx := findHeader(lines, header); idx != -1 {
 		return lines, idx
 	}
@@ -391,16 +397,37 @@ func (s *Store) mutateByLine(lineIndex int, kind string, want *regexp.Regexp, fn
 
 // ---- Create ----------------------------------------------------------------
 
-func (s *Store) CreateTask(project, description string, forToday bool) error {
+// ParseDate resolves a human-readable date string to a YYYY-MM-DD key using
+// the store's clock. Accepts "today", "tomorrow", "yesterday", or YYYY-MM-DD.
+func (s *Store) ParseDate(input string) (string, error) {
+	now := s.now()
+	switch strings.ToLower(strings.TrimSpace(input)) {
+	case "today":
+		return now.Format("2006-01-02"), nil
+	case "tomorrow":
+		return now.AddDate(0, 0, 1).Format("2006-01-02"), nil
+	case "yesterday":
+		return now.AddDate(0, 0, -1).Format("2006-01-02"), nil
+	default:
+		if _, err := time.Parse("2006-01-02", input); err != nil {
+			return "", fmt.Errorf("invalid date %q: expected YYYY-MM-DD, 'today', 'tomorrow', or 'yesterday'", input)
+		}
+		return input, nil
+	}
+}
+
+// CreateTask adds a new task. date is a YYYY-MM-DD string selecting which
+// dated section to use; an empty date adds to # Todo instead.
+func (s *Store) CreateTask(project, description, date string) error {
 	lines, err := s.read()
 	if err != nil {
 		return err
 	}
 	taskLine := formatTask(project, description)
 
-	if forToday {
+	if date != "" {
 		var headerIdx int
-		lines, headerIdx = s.ensureTodayHeader(lines)
+		lines, headerIdx = s.ensureDateHeader(lines, date)
 		end := nextHeading(lines, headerIdx, func(l string) bool {
 			return reH1.MatchString(l) || reH2.MatchString(l)
 		})

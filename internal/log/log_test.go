@@ -114,7 +114,7 @@ func TestListIncomplete_EmptyWhenAllComplete(t *testing.T) {
 
 func TestCreateTask_WithoutForToday_AddsToTodoWithProject(t *testing.T) {
 	s := newTestStore(t, "# Todo\n\n- [ ] existing\n")
-	if err := s.CreateTask("myproject", "New task", false); err != nil {
+	if err := s.CreateTask("myproject", "New task", ""); err != nil {
 		t.Fatal(err)
 	}
 	content := s.readAll(t)
@@ -125,7 +125,7 @@ func TestCreateTask_WithoutForToday_AddsToTodoWithProject(t *testing.T) {
 
 func TestCreateTask_WithoutProject(t *testing.T) {
 	s := newTestStore(t, "# Todo\n\n- [ ] existing\n")
-	if err := s.CreateTask("", "No project task", false); err != nil {
+	if err := s.CreateTask("", "No project task", ""); err != nil {
 		t.Fatal(err)
 	}
 	content := s.readAll(t)
@@ -143,7 +143,7 @@ func TestCreateTask_ForToday_AppendsToExisting(t *testing.T) {
 	if err := os.WriteFile(s.Path, []byte("# 2026-04-15\n\n- [ ] existing task\n\n# Backlog\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateTask("", "Another task", true); err != nil {
+	if err := s.CreateTask("", "Another task", "2026-04-15"); err != nil {
 		t.Fatal(err)
 	}
 	entry, _ := s.GetToday()
