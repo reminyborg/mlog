@@ -36,6 +36,31 @@ printf 'multi\nline\n' | mlog note -    # append free-form note to today's entry
 mlog edit                                # open log in $EDITOR
 ```
 
+### Shell quoting (important for note/create text)
+
+Note and task text is passed as a shell argument, so the shell — not mlog —
+interprets backticks (`` ` ``), `$`, `*`, `~`, and `[...]` **before** mlog runs.
+Markdown-ish text like `` `parseConfig()` `` or `[proj]` will be run as a command
+or glob-expanded, silently corrupting the note. mlog cannot recover text the
+shell already mangled.
+
+Safe forms, in order of preference:
+
+```sh
+# 1. Quoted heredoc via stdin — bulletproof, disables ALL expansion. Best default.
+mlog note - <<'EOF'
+fix `parseConfig()`, clean up $HOME, tag [proj]
+EOF
+
+# 2. Single quotes around the whole arg — disables backticks/$/glob (not embedded ').
+mlog note 'fix `parseConfig()` today'
+mlog create -p proj 'refactor [proj] parser'
+
+# Avoid: double quotes still expand backticks and $ →  mlog note "fix `foo`"  ✗
+```
+
+Prefer the heredoc form whenever the text contains any of `` ` `` `$ * ~ [ ]`.
+
 ## Disambiguation
 
 `complete`, `schedule`, `uncomplete`, and `delete` exit non-zero when a substring matches

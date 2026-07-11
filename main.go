@@ -85,7 +85,7 @@ type CreateCmd struct {
 	Project     string   `help:"Project tag" short:"p"`
 	Today       bool     `help:"Add to today's entry instead of # Todo" short:"t"`
 	Date        string   `help:"Add to a specific date's entry (today, tomorrow, yesterday, YYYY-MM-DD)" short:"d"`
-	Description []string `arg:"" help:"Task description" optional:""`
+	Description []string `arg:"" help:"Task description. Single-quote it (or pipe stdin) so the shell doesn't interpret [project]/backticks/$." optional:""`
 }
 
 func (c *CreateCmd) Run(ctx *Context) error {
@@ -210,7 +210,7 @@ func (c *TodayCmd) Run(ctx *Context) error {
 }
 
 type NoteCmd struct {
-	Text []string `arg:"" help:"Note text to append to today's entry. Pass '-' or pipe stdin for multi-line." optional:""`
+	Text []string `arg:"" help:"Note text. To avoid the shell interpreting backticks/$/*/[], pass '-' with a quoted heredoc or pipe stdin (e.g. mlog note - <<'EOF'). Single-quote inline text." optional:""`
 }
 
 func (c *NoteCmd) Run(ctx *Context) error {
