@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"golang.org/x/term"
 
 	mlog "github.com/reminyborg/mlog/internal/log"
 )
@@ -210,7 +211,6 @@ func (c *TodayCmd) Run(ctx *Context) error {
 }
 
 type NoteCmd struct {
-	Edit bool     `help:"Compose the note in $EDITOR (implied when no text is given on a terminal)" short:"e"`
 	Text []string `arg:"" help:"Note text. To avoid the shell interpreting backticks/$/*/[], pass '-' with a quoted heredoc or pipe stdin (e.g. mlog note - <<'EOF'). Single-quote inline text. Omit to compose in $EDITOR." optional:""`
 }
 
@@ -221,12 +221,9 @@ func (c *NoteCmd) Run(ctx *Context) error {
 	}
 	// No text on an interactive terminal means the user wants to compose one,
 	// the way `git commit` opens an editor when given no -m.
-	if c.Edit || (text == "" && isTerminal(os.Stdin)) {
-		if !isTerminal(os.Stdin) {
-			return fmt.Errorf("cannot open an editor: stdin is not a terminal")
-		}
+	if text == "" && isTerminal(os.Stdin) {
 		var tmp string
-		text, tmp, err = composeInEditor(text)
+		text, tmp, err = composeInEditor("")
 		if err != nil {
 			return err
 		}
@@ -241,12 +238,11 @@ func (c *NoteCmd) Run(ctx *Context) error {
 	return ctx.Store.AppendToToday(text)
 }
 
+// isTerminal reports whether f is an interactive terminal. A character-device
+// check is not enough: /dev/null is one, so `mlog note < /dev/null` in a script
+// would look interactive and try to open an editor.
 func isTerminal(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return (fi.Mode() & os.ModeCharDevice) != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 // resolveBody returns the user-supplied body text. If args is empty and stdin

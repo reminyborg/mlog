@@ -103,7 +103,7 @@ Running `mlog` with no arguments runs `list`. It's safe to call from scripts.
 | `today` | Print today's entry. |
 | `show <YYYY-MM-DD>` | Print a specific date's entry. |
 | `search <query>` | Case-insensitive substring search across the log. |
-| `note [-e] [text]` | Append a free-form note to today's entry. With no text (or with `-e`), composes it in `$VISUAL` / `$EDITOR`. |
+| `note [text]` | Append a free-form note to today's entry. With no text, composes it in `$VISUAL` / `$EDITOR`. |
 | `sync [-p] [-P] [-m msg]` | Pull, commit, and push the log file via git. |
 | `path` | Print the resolved path to the log file (respects `MLOG_FILE` and `--log`). |
 | `edit [-t] [-d date]` | Open the log file in `$VISUAL` / `$EDITOR`; with `-t`/`-d`, only that day's entry. |
@@ -113,7 +113,7 @@ Running `mlog` with no arguments runs `list`. It's safe to call from scripts.
 
 ### Writing in your editor
 
-Running `mlog note` with no text on a terminal opens a scratch markdown buffer in your editor, like `git commit` with no `-m`; saving an empty buffer aborts the note. `mlog note -e 'draft'` seeds the buffer with `draft` first. Because the text never passes through the shell this way, backticks, `$`, and `[brackets]` are written to the log verbatim — no quoting needed.
+Running `mlog note` with no text on a terminal opens a scratch markdown buffer in your editor, like `git commit` with no `-m`; saving an empty buffer aborts the note. Because the text never passes through the shell this way, backticks, `$`, and `[brackets]` are written to the log verbatim — no quoting needed.
 
 `mlog edit -t` opens **today's whole entry** — heading, tasks, and every note under it — so a day you've already written can be revised, reworded, or reorganized as many times as you like. `mlog edit -d 2026-07-04` (or `-d yesterday`, `-d tomorrow`) does the same for any other day, creating the entry if it doesn't exist yet.
 
