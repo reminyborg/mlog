@@ -916,6 +916,23 @@ func TestReplaceEntry_CreatesMissingEntry(t *testing.T) {
 	}
 }
 
+func TestReplaceEntry_TolerantOfPreExistingIssues(t *testing.T) {
+	// The file already has a duplicate date header (e.g. from a bad merge);
+	// editing an unrelated day must still go through.
+	s := newTestStore(t, "# 2026-04-14\n\nMorning.\n\n# 2026-04-14\n\nEvening.\n\n# 2026-04-15\n\nDraft.\n")
+	if err := s.ReplaceEntry("2026-04-15", "# 2026-04-15\n\nRevised."); err != nil {
+		t.Fatalf("pre-existing issue blocked an unrelated edit: %v", err)
+	}
+	full := s.readAll(t)
+	if !strings.Contains(full, "Revised.") || strings.Contains(full, "Draft.") {
+		t.Errorf("edit not applied:\n%s", full)
+	}
+	// But an edit that adds a *new* duplicate is still rejected.
+	if err := s.ReplaceEntry("2026-04-15", "# 2026-04-15\n\nRevised.\n## Glued"); err == nil {
+		t.Error("expected the newly introduced issue to be rejected")
+	}
+}
+
 func TestReplaceEntry_RejectsBadBodies(t *testing.T) {
 	const content = "# 2026-04-15\n\nToday.\n\n# Todo\n\n- [ ] later\n"
 	cases := map[string]string{

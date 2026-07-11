@@ -59,6 +59,10 @@ func (e *AmbiguousMatchError) Error() string {
 type ValidationIssue struct {
 	Line    int // 1-based line number
 	Message string
+
+	// key identifies the issue independently of where it sits in the file, so
+	// the same problem can be recognised before and after an edit shifts lines.
+	key string
 }
 
 // ValidationError is returned by Validate when one or more issues are detected.
@@ -221,6 +225,37 @@ func (s *Store) Validate() error {
 }
 
 func validateLines(lines []string) error {
+	issues := issuesIn(lines)
+	if len(issues) == 0 {
+		return nil
+	}
+	return &ValidationError{Issues: issues}
+}
+
+// validateEdit checks the result of an edit, ignoring problems the file
+// already had. A file that went stale (a duplicate date header from a bad
+// merge, say) still has to be fixable through an unrelated edit, so only
+// issues the edit introduces are worth rejecting it for.
+func validateEdit(before, after []string) error {
+	existing := map[string]int{}
+	for _, issue := range issuesIn(before) {
+		existing[issue.key]++
+	}
+	var introduced []ValidationIssue
+	for _, issue := range issuesIn(after) {
+		if existing[issue.key] > 0 {
+			existing[issue.key]--
+			continue
+		}
+		introduced = append(introduced, issue)
+	}
+	if len(introduced) == 0 {
+		return nil
+	}
+	return &ValidationError{Issues: introduced}
+}
+
+func issuesIn(lines []string) []ValidationIssue {
 	var issues []ValidationIssue
 	todoCount := 0
 	backlogCount := 0
@@ -235,12 +270,12 @@ func validateLines(lines []string) error {
 			case "Todo":
 				todoCount++
 				if todoCount > 1 {
-					issues = append(issues, ValidationIssue{Line: lineNum, Message: "duplicate # Todo header"})
+					issues = append(issues, ValidationIssue{Line: lineNum, Message: "duplicate # Todo header", key: "dup-todo"})
 				}
 			case "Backlog":
 				backlogCount++
 				if backlogCount > 1 {
-					issues = append(issues, ValidationIssue{Line: lineNum, Message: "duplicate # Backlog header"})
+					issues = append(issues, ValidationIssue{Line: lineNum, Message: "duplicate # Backlog header", key: "dup-backlog"})
 				}
 			}
 		case reDateH1.MatchString(line):
@@ -249,6 +284,7 @@ func validateLines(lines []string) error {
 				issues = append(issues, ValidationIssue{
 					Line:    lineNum,
 					Message: fmt.Sprintf("duplicate date header %q (first seen at line %d)", date, prev),
+					key:     "dup-date:" + date,
 				})
 			} else {
 				datesSeen[date] = lineNum
@@ -260,14 +296,12 @@ func validateLines(lines []string) error {
 			issues = append(issues, ValidationIssue{
 				Line:    lineNum,
 				Message: fmt.Sprintf("heading %q has no blank line before it", strings.TrimSpace(line)),
+				key:     "no-blank-before:" + strings.TrimSpace(line),
 			})
 		}
 	}
 
-	if len(issues) == 0 {
-		return nil
-	}
-	return &ValidationError{Issues: issues}
+	return issues
 }
 
 // ---- Listing / search ------------------------------------------------------
@@ -854,16 +888,17 @@ func (s *Store) ReplaceEntry(date, body string) error {
 		return err
 	}
 	start, end, ok := s.entryBounds(lines, date)
+	var edited []string
 	if !ok {
 		at := newDateHeaderInsertPos(lines)
-		lines = splice(lines, at, 0, append(newLines, "")...)
+		edited = splice(lines, at, 0, append(newLines, "")...)
 	} else {
-		lines = splice(lines, start, end-start, newLines...)
+		edited = splice(lines, start, end-start, newLines...)
 	}
-	if err := validateLines(lines); err != nil {
+	if err := validateEdit(lines, edited); err != nil {
 		return err
 	}
-	return s.write(lines)
+	return s.write(edited)
 }
 
 func (s *Store) GetToday() (string, error) {
