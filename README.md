@@ -103,13 +103,21 @@ Running `mlog` with no arguments runs `list`. It's safe to call from scripts.
 | `today` | Print today's entry. |
 | `show <YYYY-MM-DD>` | Print a specific date's entry. |
 | `search <query>` | Case-insensitive substring search across the log. |
-| `note <text>` | Append a free-form note to today's entry. |
+| `note [-e] [text]` | Append a free-form note to today's entry. With no text (or with `-e`), composes it in `$VISUAL` / `$EDITOR`. |
 | `sync [-p] [-P] [-m msg]` | Pull, commit, and push the log file via git. |
 | `path` | Print the resolved path to the log file (respects `MLOG_FILE` and `--log`). |
-| `edit` | Open the log file in `$VISUAL` / `$EDITOR`. |
+| `edit [-t] [-d date]` | Open the log file in `$VISUAL` / `$EDITOR`; with `-t`/`-d`, only that day's entry. |
 | `skill install` / `skill print` | Install the embedded `SKILL.md` into agent skill dirs, or print it to stdout. |
 
 `complete`, `schedule`, `uncomplete`, and `delete` exit non-zero with `--line N` hints when a substring matches more than one task. Pass `-` (or pipe stdin) to `create` and `note` for multi-line input.
+
+### Writing in your editor
+
+Running `mlog note` with no text on a terminal opens a scratch markdown buffer in your editor, like `git commit` with no `-m`; saving an empty buffer aborts the note. `mlog note -e 'draft'` seeds the buffer with `draft` first. Because the text never passes through the shell this way, backticks, `$`, and `[brackets]` are written to the log verbatim — no quoting needed.
+
+`mlog edit -t` opens **today's whole entry** — heading, tasks, and every note under it — so a day you've already written can be revised, reworded, or reorganized as many times as you like. `mlog edit -d 2026-07-04` (or `-d yesterday`, `-d tomorrow`) does the same for any other day, creating the entry if it doesn't exist yet.
+
+The edit is checked before it's saved: the entry has to keep its date heading and can't introduce a second `#` heading (that would start a new section), and the whole file must still pass `validate`. If a rewrite is rejected, nothing is written and your buffer is left on disk at the path printed in the error, so no work is lost.
 
 `sync` defaults to pull-then-push. Use `-p`/`--pull-only` to only pull, `-P`/`--push-only` to only commit and push, and `-m`/`--message` to override the commit message.
 

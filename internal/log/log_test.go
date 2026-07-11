@@ -849,3 +849,91 @@ func TestValidate_MultipleIssuesAllReported(t *testing.T) {
 		t.Errorf("expected at least 2 issues (duplicate + missing blank), got %d: %v", len(ve.Issues), ve.Issues)
 	}
 }
+
+// ---- Entry boundaries / ReplaceEntry ---------------------------------------
+
+func TestEntry_IncludesSubheadingsUpToNextH1(t *testing.T) {
+	s := newTestStore(t, "# 2026-04-15\n\nMorning.\n\n## Standup\n\nTalked shop.\n\n# Todo\n\n- [ ] later\n")
+	entry, found, err := s.Entry("2026-04-15")
+	if err != nil || !found {
+		t.Fatalf("Entry() = %v, %v", found, err)
+	}
+	if !strings.Contains(entry, "## Standup") || !strings.Contains(entry, "Talked shop.") {
+		t.Errorf("entry truncated at subheading:\n%s", entry)
+	}
+	if strings.Contains(entry, "# Todo") {
+		t.Errorf("entry leaked into the next H1:\n%s", entry)
+	}
+}
+
+func TestAppendToToday_AppendsAfterSubheadings(t *testing.T) {
+	s := newTestStore(t, "# 2026-04-15\n\nMorning.\n\n## Standup\n\nTalked shop.\n\n# Todo\n\n- [ ] later\n")
+	if err := s.AppendToToday("Evening wrap-up."); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	if strings.Index(full, "Evening wrap-up.") < strings.Index(full, "## Standup") {
+		t.Errorf("note landed above the subheading instead of at the end of the day:\n%s", full)
+	}
+	if err := s.Validate(); err != nil {
+		t.Errorf("append broke the file: %v\n%s", err, full)
+	}
+}
+
+func TestReplaceEntry_RewritesDayInPlace(t *testing.T) {
+	s := newTestStore(t, "# 2026-04-14\n\nOld day.\n\n# 2026-04-15\n\n- [x] done\n\nDraft.\n\n# Todo\n\n- [ ] later\n")
+	err := s.ReplaceEntry("2026-04-15", "# 2026-04-15\n\n- [x] done\n\nRevised.\n\n## Notes\n\nMore.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	for _, want := range []string{"# 2026-04-14", "Old day.", "Revised.", "## Notes", "# Todo", "- [ ] later"} {
+		if !strings.Contains(full, want) {
+			t.Errorf("missing %q after replace:\n%s", want, full)
+		}
+	}
+	if strings.Contains(full, "Draft.") {
+		t.Errorf("old body survived:\n%s", full)
+	}
+	if err := s.Validate(); err != nil {
+		t.Errorf("replace broke the file: %v\n%s", err, full)
+	}
+}
+
+func TestReplaceEntry_CreatesMissingEntry(t *testing.T) {
+	s := newTestStore(t, "# 2026-04-15\n\nToday.\n\n## Standup\n\nShop.\n\n# Todo\n\n- [ ] later\n")
+	if err := s.ReplaceEntry("2026-04-16", "# 2026-04-16\n\nTomorrow's plan."); err != nil {
+		t.Fatal(err)
+	}
+	full := s.readAll(t)
+	// The new day must land after the previous day's subheading, not inside it.
+	if !(strings.Index(full, "## Standup") < strings.Index(full, "# 2026-04-16") &&
+		strings.Index(full, "# 2026-04-16") < strings.Index(full, "# Todo")) {
+		t.Errorf("new date header misplaced:\n%s", full)
+	}
+	if err := s.Validate(); err != nil {
+		t.Errorf("create broke the file: %v\n%s", err, full)
+	}
+}
+
+func TestReplaceEntry_RejectsBadBodies(t *testing.T) {
+	const content = "# 2026-04-15\n\nToday.\n\n# Todo\n\n- [ ] later\n"
+	cases := map[string]string{
+		"empty":            "   \n",
+		"heading removed":  "Just prose, no heading.",
+		"wrong date":       "# 2026-04-16\n\nProse.",
+		"extra H1":         "# 2026-04-15\n\nProse.\n\n# Todo\n\n- [ ] sneaky",
+		"glued subheading": "# 2026-04-15\n\nProse.\n## Glued",
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := newTestStore(t, content)
+			if err := s.ReplaceEntry("2026-04-15", body); err == nil {
+				t.Fatalf("expected an error for %s", name)
+			}
+			if got := s.readAll(t); got != content {
+				t.Errorf("file was modified despite the error:\n%s", got)
+			}
+		})
+	}
+}

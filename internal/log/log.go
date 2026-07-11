@@ -176,9 +176,9 @@ func newDateHeaderInsertPos(lines []string) int {
 		}
 	}
 	if last != -1 {
-		return nextHeading(lines, last, func(l string) bool {
-			return reH1.MatchString(l) || reH2.MatchString(l)
-		})
+		// Only an H1 ends the last day entry; ## / ### inside it are note prose,
+		// so a new date header goes after them, not into the middle of them.
+		return nextHeading(lines, last, reH1.MatchString)
 	}
 	if i := slices.IndexFunc(lines, reTodoBacklog.MatchString); i != -1 {
 		return i
@@ -788,7 +788,10 @@ func (s *Store) AppendToToday(text string) error {
 		return s.write(lines)
 	}
 
-	endIdx := nextHeading(lines, headerIdx, reHeading.MatchString)
+	// A day entry runs to the next H1; ## / ### subheadings inside it are part
+	// of the note prose, so a new note is appended after them, not before.
+	endIdx := nextHeading(lines, headerIdx, reH1.MatchString)
+	endIdx = trimTrailingBlanks(lines, headerIdx+1, endIdx)
 	var toInsert []string
 	if endIdx > 0 && strings.TrimSpace(lines[endIdx-1]) != "" {
 		toInsert = append(toInsert, "")
@@ -801,20 +804,66 @@ func (s *Store) AppendToToday(text string) error {
 	return s.write(lines)
 }
 
-// Entry returns the body of the H1 section for the given date, a found flag,
-// and any read error. The body excludes the date heading itself, with
-// surrounding blank lines trimmed.
+// Entry returns the H1 section for the given date (heading included), a found
+// flag, and any read error. The section runs to the next H1, so ## / ###
+// subheadings written inside a day's notes are part of the entry.
 func (s *Store) Entry(date string) (string, bool, error) {
 	lines, err := s.read()
 	if err != nil {
 		return "", false, err
 	}
-	start := findHeader(lines, "# "+date)
-	if start == -1 {
+	start, end, ok := s.entryBounds(lines, date)
+	if !ok {
 		return "", false, nil
 	}
-	end := nextHeading(lines, start, reHeading.MatchString)
 	return strings.TrimSpace(strings.Join(lines[start:end], "\n")), true, nil
+}
+
+// entryBounds locates the [start, end) line range of a date's H1 section.
+func (s *Store) entryBounds(lines []string, date string) (int, int, bool) {
+	start := findHeader(lines, "# "+date)
+	if start == -1 {
+		return 0, 0, false
+	}
+	end := nextHeading(lines, start, reH1.MatchString)
+	return start, trimTrailingBlanks(lines, start+1, end), true
+}
+
+// ReplaceEntry overwrites a date's whole H1 section with body (which must
+// still start with that date's heading), creating the entry if it is absent.
+// The result is validated before it is written, so a mangled edit is rejected
+// rather than persisted.
+func (s *Store) ReplaceEntry(date, body string) error {
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return fmt.Errorf("invalid date %q: expected YYYY-MM-DD", date)
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return fmt.Errorf("entry is empty")
+	}
+	newLines := strings.Split(body, "\n")
+	if strings.TrimSpace(newLines[0]) != "# "+date {
+		return fmt.Errorf("the entry must still start with its %q heading", "# "+date)
+	}
+	if i := slices.IndexFunc(newLines[1:], reH1.MatchString); i != -1 {
+		return fmt.Errorf("the entry cannot contain another H1 heading (%q); H1 starts a new section", strings.TrimSpace(newLines[1+i]))
+	}
+
+	lines, err := s.read()
+	if err != nil {
+		return err
+	}
+	start, end, ok := s.entryBounds(lines, date)
+	if !ok {
+		at := newDateHeaderInsertPos(lines)
+		lines = splice(lines, at, 0, append(newLines, "")...)
+	} else {
+		lines = splice(lines, start, end-start, newLines...)
+	}
+	if err := validateLines(lines); err != nil {
+		return err
+	}
+	return s.write(lines)
 }
 
 func (s *Store) GetToday() (string, error) {

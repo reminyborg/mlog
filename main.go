@@ -210,13 +210,30 @@ func (c *TodayCmd) Run(ctx *Context) error {
 }
 
 type NoteCmd struct {
-	Text []string `arg:"" help:"Note text. To avoid the shell interpreting backticks/$/*/[], pass '-' with a quoted heredoc or pipe stdin (e.g. mlog note - <<'EOF'). Single-quote inline text." optional:""`
+	Edit bool     `help:"Compose the note in $EDITOR (implied when no text is given on a terminal)" short:"e"`
+	Text []string `arg:"" help:"Note text. To avoid the shell interpreting backticks/$/*/[], pass '-' with a quoted heredoc or pipe stdin (e.g. mlog note - <<'EOF'). Single-quote inline text. Omit to compose in $EDITOR." optional:""`
 }
 
 func (c *NoteCmd) Run(ctx *Context) error {
 	text, err := resolveBody(c.Text)
 	if err != nil {
 		return err
+	}
+	// No text on an interactive terminal means the user wants to compose one,
+	// the way `git commit` opens an editor when given no -m.
+	if c.Edit || (text == "" && isTerminal(os.Stdin)) {
+		if !isTerminal(os.Stdin) {
+			return fmt.Errorf("cannot open an editor: stdin is not a terminal")
+		}
+		var tmp string
+		text, tmp, err = composeInEditor(text)
+		if err != nil {
+			return err
+		}
+		defer os.Remove(tmp)
+		if text == "" {
+			return fmt.Errorf("aborting note due to empty message")
+		}
 	}
 	if text == "" {
 		return fmt.Errorf("note text is required (pass as args, '-' to read stdin, or pipe stdin)")
@@ -540,9 +557,59 @@ func (c *ValidateCmd) Run(ctx *Context) error {
 	return nil
 }
 
-type EditCmd struct{}
+type EditCmd struct {
+	Today bool   `help:"Edit only today's entry instead of the whole file" short:"t"`
+	Date  string `help:"Edit a specific date's entry (today, tomorrow, yesterday, YYYY-MM-DD)" short:"d"`
+}
 
 func (c *EditCmd) Run(ctx *Context) error {
+	if !c.Today && c.Date == "" {
+		return launchEditor(ctx.Store.Path)
+	}
+	date := ctx.Store.TodayKey()
+	if c.Date != "" {
+		var err error
+		if date, err = ctx.Store.ParseDate(c.Date); err != nil {
+			return err
+		}
+	}
+	if !isTerminal(os.Stdin) {
+		return fmt.Errorf("cannot open an editor: stdin is not a terminal")
+	}
+
+	entry, found, err := ctx.Store.Entry(date)
+	if err != nil {
+		return err
+	}
+	if !found {
+		entry = "# " + date + "\n"
+	}
+	text, tmp, err := composeInEditor(entry)
+	if err != nil {
+		return err
+	}
+	if text == strings.TrimSpace(entry) {
+		os.Remove(tmp)
+		fmt.Println("No changes.")
+		return nil
+	}
+	if strings.TrimSpace(text) == "" {
+		os.Remove(tmp)
+		return fmt.Errorf("aborting edit: the entry was emptied (to remove tasks or notes, delete the lines and keep the heading)")
+	}
+	if err := ctx.Store.ReplaceEntry(date, text); err != nil {
+		// Keep the buffer so a rejected edit isn't lost.
+		return fmt.Errorf("%w\n\nyour edit is preserved at %s", err, tmp)
+	}
+	os.Remove(tmp)
+	fmt.Printf("Updated entry for %s.\n", date)
+	return nil
+}
+
+// launchEditor opens path in $VISUAL, falling back to $EDITOR then vi. The
+// editor value is a command line, not a bare binary (e.g. "code --wait"), so
+// it is passed through sh with the path as "$@".
+func launchEditor(path string) error {
 	editor := os.Getenv("VISUAL")
 	if editor == "" {
 		editor = os.Getenv("EDITOR")
@@ -550,11 +617,43 @@ func (c *EditCmd) Run(ctx *Context) error {
 	if editor == "" {
 		editor = "vi"
 	}
-	cmd := exec.Command("sh", "-c", editor+` "$@"`, "sh", ctx.Store.Path)
+	cmd := exec.Command("sh", "-c", editor+` "$@"`, "sh", path)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// composeInEditor opens a scratch markdown buffer seeded with initial and
+// returns what the user saved, along with the temp file's path. An empty buffer
+// means "abort", mirroring git's behaviour on an empty commit message. The
+// caller owns the temp file: remove it once the text is safely stored, or leave
+// it in place so a rejected edit can be recovered.
+func composeInEditor(initial string) (text string, path string, err error) {
+	f, err := os.CreateTemp("", "mlog-*.md")
+	if err != nil {
+		return "", "", err
+	}
+	path = f.Name()
+	if initial != "" {
+		if _, err := f.WriteString(strings.TrimRight(initial, "\n") + "\n"); err != nil {
+			f.Close()
+			os.Remove(path)
+			return "", "", err
+		}
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(path)
+		return "", "", err
+	}
+	if err := launchEditor(path); err != nil {
+		return "", path, fmt.Errorf("editor exited with an error: %w", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", path, err
+	}
+	return strings.TrimRight(string(b), "\n"), path, nil
 }
 
 var (
